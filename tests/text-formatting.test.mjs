@@ -21,3 +21,16 @@ test("reports mixed list content", () => {
   assert.equal(listModeForText("• First\nSecond"), "mixed");
   assert.equal(listModeForText("First\nSecond"), "none");
 });
+
+test("an empty text box remains empty", () => {
+  assert.equal(toggleListStyle("", "bullet"), "");
+  assert.equal(listModeForText("\n  \n"), "none");
+});
+
+test("converts mixed list markers into one bullet style", () => {
+  assert.equal(toggleListStyle("1. First\n- Second\nThird", "bullet"), "• First\n• Second\n• Third");
+});
+
+test("numbering skips blank lines while preserving indentation", () => {
+  assert.equal(toggleListStyle("  First\n\n    Second", "number"), "  1. First\n\n    2. Second");
+});

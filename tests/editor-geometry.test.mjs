@@ -126,3 +126,76 @@ test("resizing respects the minimum size and page bounds", () => {
   });
   assert.deepEqual(result.frame, { x: 44, y: 52, w: 96, h: 48 });
 });
+
+test("moving snaps vertically to the page center", () => {
+  const result = computeMoveWithGuides({
+    frames: { selected: { x: 100, y: 100, w: 100, h: 80 } },
+    delta: { x: 0, y: 219 },
+    others: [],
+    pageWidth: 1280,
+    pageHeight: 720,
+    threshold: 8,
+    enabled: true,
+  });
+  assert.equal(result.delta.y, 220);
+  assert.deepEqual(result.guides.find((guide) => guide.axis === "y"), {
+    axis: "y",
+    position: 360,
+    kind: "page",
+    label: "Page center",
+  });
+});
+
+test("hidden objects are ignored as guide candidates", () => {
+  const result = computeMoveWithGuides({
+    frames: { selected: { x: 100, y: 100, w: 100, h: 80 } },
+    delta: { x: 143, y: 0 },
+    others: [{ id: "hidden", hidden: true, frame: { x: 350, y: 220, w: 120, h: 80 } }],
+    pageWidth: 1280,
+    pageHeight: 720,
+    threshold: 8,
+    enabled: true,
+  });
+  assert.equal(result.delta.x, 143);
+  assert.equal(result.guides.some((guide) => guide.axis === "x"), false);
+});
+
+test("resizing a west edge snaps while keeping the east edge fixed", () => {
+  const result = computeResizeWithGuides({
+    frame: { x: 300, y: 100, w: 200, h: 80 },
+    handle: "w",
+    delta: { x: -143, y: 0 },
+    others: [{ id: "target", frame: { x: 50, y: 220, w: 100, h: 80 } }],
+    pageWidth: 1280,
+    pageHeight: 720,
+    threshold: 8,
+    enabled: true,
+  });
+  assert.equal(result.frame.x, 150);
+  assert.equal(result.frame.w, 350);
+  assert.equal(result.frame.x + result.frame.w, 500);
+});
+
+test("resizing a south edge snaps to the page boundary", () => {
+  const result = computeResizeWithGuides({
+    frame: { x: 100, y: 100, w: 200, h: 100 },
+    handle: "s",
+    delta: { x: 0, y: 513 },
+    others: [],
+    pageWidth: 1280,
+    pageHeight: 720,
+    threshold: 8,
+    enabled: true,
+  });
+  assert.equal(result.frame.h, 620);
+  assert.equal(result.guides[0]?.position, 720);
+});
+
+test("a dragged text box is clamped into a smaller page", () => {
+  assert.deepEqual(normalizeTextBoxFrame({ x: -40, y: -20 }, { x: 300, y: 180 }, 200, 100), {
+    x: 0,
+    y: 0,
+    w: 200,
+    h: 100,
+  });
+});

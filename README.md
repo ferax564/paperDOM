@@ -8,6 +8,8 @@ PaperDOM combines freeform PowerPoint-style editing with a structured, machine-r
 
 > PaperDOM is an early working prototype. The editor is usable today, while collaboration, richer inline text ranges, and the plugin SDK are still evolving.
 
+[Architecture](docs/ARCHITECTURE.md) · [Document format](docs/DOCUMENT_FORMAT.md) · [Agent API](docs/AGENT_API.md) · [Testing status](docs/TESTING.md) · [Project audit](docs/PROJECT_AUDIT.md)
+
 ## What works
 
 - Freeform text boxes with preserved multiline editing
@@ -50,10 +52,12 @@ Then open the local URL printed by Vite.
 
 ```bash
 npm run lint
+npm run typecheck
+npm run audit:prod
 npm test
 ```
 
-`npm test` creates a production build, validates the deployable Worker artifact, and runs the geometry, rendering, and text-formatting tests.
+`npm test` creates a production build, validates the deployable Worker artifact, and runs the document-model, agent-transaction, geometry, rendering, authentication, and text-formatting tests. GitHub Actions runs the same validation, including the production dependency audit, on pushes and pull requests.
 
 ## Document format
 
@@ -109,10 +113,12 @@ window.paperdom.transaction({
 ## Project structure
 
 - `app/page.tsx` — editor state, interactions, renderer, inspector, and JSON API
+- `app/document-model.ts` — format types, migration, validation, storage keys, and atomic agent transactions
 - `app/editor.css` — editor and presentation styling
 - `app/editor-geometry.ts` — text-box geometry, snapping, and resize calculations
 - `app/text-formatting.ts` — plain-text bullet and numbering transforms
-- `tests/` — geometry, rendered artifact, and text-formatting tests
+- `tests/` — model, transaction, auth, geometry, rendered-artifact, and text-formatting tests
+- `docs/` — architecture, format, API, testing status, and full project audit
 - `worker/` and `build/` — Cloudflare/Vinext deployment surface
 
 ## Roadmap
@@ -127,4 +133,6 @@ window.paperdom.transaction({
 
 ## License
 
-No open-source license has been selected yet. The code is publicly viewable, but reuse and redistribution permissions still need an explicit license before the project can be considered formally open source.
+PaperDOM is open-source software licensed under the [MIT License](LICENSE).
+
+Contributions are welcome. Read [CONTRIBUTING.md](CONTRIBUTING.md) and [SECURITY.md](SECURITY.md) before submitting a change or vulnerability report.

@@ -14,31 +14,24 @@ import {
   normalizeTextBoxFrame,
   type GuideLine,
 } from "./editor-geometry";
+import {
+  applyDocumentTransaction,
+  documentRestoreKeys,
+  documentStorageKey,
+  LAST_DOCUMENT_STORAGE_KEY,
+  parsePaperDOMDocument,
+  type Anchor,
+  type CanvasElement,
+  type CanvasPage,
+  type ElementStyle,
+  type Endpoint,
+  type Frame,
+  type Kind,
+  type PaperDOMDocument,
+} from "./document-model";
 import { listModeForText, toggleListStyle, type ListMode } from "./text-formatting";
 
 type Tool = "select" | "pan" | "text" | "shape" | "ellipse" | "arrow" | "line" | "image" | "plugin";
-type Kind = "text" | "shape" | "ellipse" | "connector" | "line" | "image" | "plugin";
-type Anchor = "top" | "right" | "bottom" | "left";
-type Endpoint = { elementId?: string; anchor?: Anchor; x?: number; y?: number };
-type Frame = { x: number; y: number; w: number; h: number; rotation: number };
-type ElementStyle = {
-  fill: string; stroke: string; strokeWidth: number; radius: number; opacity: number;
-  color: string; fontSize: number; fontWeight: number; textAlign: "left" | "center" | "right";
-  fontFamily: string; fontStyle: "normal" | "italic"; underline: boolean; strike: boolean;
-  lineHeight: number; letterSpacing: number; verticalAlign: "top" | "middle" | "bottom"; padding: number;
-  lineStyle?: "solid" | "dashed";
-};
-type CanvasElement = {
-  id: string; type: Kind; name: string; frame: Frame; z: number; style: ElementStyle;
-  locked?: boolean; hidden?: boolean; from?: Endpoint; to?: Endpoint;
-  content?: { text?: string; src?: string; alt?: string; label?: string; value?: string; trend?: string; accent?: string };
-};
-type CanvasPage = { id: string; name: string; size: { width: number; height: number }; background: { color: string }; elements: CanvasElement[] };
-type PaperDOMDocument = {
-  format: "paperdom" | "canvasdoc"; version: "0.1"; id: string; title: string; revision: number;
-  pages: CanvasPage[]; plugins: { id: string; version: string }[];
-  metadata: { createdAt: string; updatedAt: string };
-};
 type Gesture =
   | { kind: "move"; startX: number; startY: number; pageId: string; frames: Record<string, Frame> }
   | { kind: "resize"; startX: number; startY: number; pageId: string; elementId: string; handle: string; frame: Frame }
@@ -51,6 +44,7 @@ type Gesture =
 const PAGE_W = 1280;
 const PAGE_H = 720;
 const BASE_SCALE = 0.62;
+const MAX_IMAGE_BYTES = 2_000_000;
 const FONT_OPTIONS = [
   { label: "Inter", value: "Inter, ui-sans-serif, system-ui, sans-serif" },
   { label: "Arial", value: "Arial, Helvetica, sans-serif" },
@@ -176,23 +170,6 @@ function snapEndpoint(x: number, y: number, elements: CanvasElement[]): Endpoint
   return best?.endpoint ?? { x, y };
 }
 
-function isPaperDOMDocument(value: unknown): value is PaperDOMDocument {
-  if (!value || typeof value !== "object") return false;
-  const candidate = value as Partial<PaperDOMDocument>;
-  return (candidate.format === "paperdom" || candidate.format === "canvasdoc") && candidate.version === "0.1" &&
-    typeof candidate.id === "string" && typeof candidate.title === "string" &&
-    Array.isArray(candidate.pages) && candidate.pages.length > 0 &&
-    candidate.pages.every((p) => p && typeof p.id === "string" && Array.isArray(p.elements));
-}
-
-function normalizePaperDOMDocument(document: PaperDOMDocument): PaperDOMDocument {
-  return {
-    ...document,
-    format: "paperdom",
-    id: document.id === "doc_canvasdoc_demo" ? "doc_paperdom_demo" : document.id,
-  };
-}
-
 function StaticPage({ page }: { page: CanvasPage }) {
   return <div className="static-page" style={{ background: page.background.color }}>
     <svg className="connector-layer" viewBox={`0 0 ${PAGE_W} ${PAGE_H}`} aria-hidden="true">
@@ -250,9 +227,11 @@ export default function Home() {
   const workspaceScrollRef = useRef<HTMLDivElement>(null);
   const imageInputRef = useRef<HTMLInputElement>(null);
   const importInputRef = useRef<HTMLInputElement>(null);
+  const titleBeforeEditRef = useRef(initialDocument.title);
   const gestureRef = useRef<Gesture | null>(null);
   const panRef = useRef<{ x: number; y: number; left: number; top: number } | null>(null);
   const committedRef = useRef<PaperDOMDocument>(initialDocument);
+  const documentRef = useRef<PaperDOMDocument>(initialDocument);
   const historyActionRef = useRef(false);
   const spaceToolRef = useRef<Tool | null>(null);
   const textEditorRefs = useRef(new Map<string, HTMLDivElement>());
@@ -275,11 +254,14 @@ export default function Home() {
         setSmartGuidesEnabled(guidePreference !== "off");
         setGuidePreferenceLoaded(true);
       }, 0);
-      const saved = window.localStorage.getItem("paperdom:doc_paperdom_demo") ?? window.localStorage.getItem("canvasdoc:doc_canvasdoc_demo");
+      const lastDocumentId = window.localStorage.getItem(LAST_DOCUMENT_STORAGE_KEY);
+      const saved = documentRestoreKeys(lastDocumentId)
+        .map((key) => window.localStorage.getItem(key))
+        .find((value) => value !== null);
       if (saved) {
-        const parsed: unknown = JSON.parse(saved);
-        if (isPaperDOMDocument(parsed)) {
-          const restored = normalizePaperDOMDocument(parsed);
+        const parsed = parsePaperDOMDocument(JSON.parse(saved));
+        if (parsed.ok) {
+          const restored = parsed.document;
           restoreTimer = window.setTimeout(() => {
             historyActionRef.current = true;
             committedRef.current = restored;
@@ -321,6 +303,10 @@ export default function Home() {
   }, [editingId]);
 
   useEffect(() => {
+    documentRef.current = doc;
+  }, [doc]);
+
+  useEffect(() => {
     if (historyActionRef.current) {
       historyActionRef.current = false;
       committedRef.current = doc;
@@ -339,7 +325,8 @@ export default function Home() {
     const savingTimer = window.setTimeout(() => setSaveLabel("Saving…"), 0);
     const timer = window.setTimeout(() => {
       try {
-        window.localStorage.setItem(`paperdom:${doc.id}`, JSON.stringify(doc));
+        window.localStorage.setItem(documentStorageKey(doc.id), JSON.stringify(doc));
+        window.localStorage.setItem(LAST_DOCUMENT_STORAGE_KEY, doc.id);
         setSaveLabel("Saved locally");
       } catch {
         setSaveLabel("Local save unavailable");
@@ -566,21 +553,21 @@ export default function Home() {
 
   const addPage = () => {
     const p: CanvasPage = { id: uid("page"), name: `Page ${doc.pages.length + 1}`, size: { width: PAGE_W, height: PAGE_H }, background: { color: "#ffffff" }, elements: [textElement(uid("title"), "Untitled page", { x: 80, y: 60, w: 560, h: 60 }, 32, { style: makeStyle({ fill: "transparent", stroke: "transparent", fontSize: 32, fontWeight: 750, textAlign: "left" }) })] };
-    setDoc((d) => ({ ...d, revision: d.revision + 1, pages: [...d.pages, p] })); setPageId(p.id); setSelection([]);
+    setDoc((d) => ({ ...d, revision: d.revision + 1, metadata: { ...d.metadata, updatedAt: new Date().toISOString() }, pages: [...d.pages, p] })); setPageId(p.id); setSelection([]);
   };
   const duplicatePage = (target = page.id) => {
     const source = doc.pages.find((p) => p.id === target); if (!source) return;
     const map = new Map(source.elements.map((e) => [e.id, uid(e.type)]));
     const copy: CanvasPage = { ...source, id: uid("page"), name: `${source.name} copy`, elements: source.elements.map((e) => ({ ...e, id: map.get(e.id)!, from: e.from ? { ...e.from, elementId: e.from.elementId ? map.get(e.from.elementId) : undefined } : undefined, to: e.to ? { ...e.to, elementId: e.to.elementId ? map.get(e.to.elementId) : undefined } : undefined })) };
-    const i = doc.pages.findIndex((p) => p.id === target); setDoc((d) => ({ ...d, revision: d.revision + 1, pages: [...d.pages.slice(0, i + 1), copy, ...d.pages.slice(i + 1)] })); setPageId(copy.id); setSelection([]);
+    const i = doc.pages.findIndex((p) => p.id === target); setDoc((d) => ({ ...d, revision: d.revision + 1, metadata: { ...d.metadata, updatedAt: new Date().toISOString() }, pages: [...d.pages.slice(0, i + 1), copy, ...d.pages.slice(i + 1)] })); setPageId(copy.id); setSelection([]);
   };
   const deletePage = (target = page.id) => {
     if (doc.pages.length === 1) return; const i = doc.pages.findIndex((p) => p.id === target); const pages = doc.pages.filter((p) => p.id !== target);
-    setDoc((d) => ({ ...d, revision: d.revision + 1, pages })); setPageId(pages[Math.max(0, i - 1)].id); setSelection([]);
+    setDoc((d) => ({ ...d, revision: d.revision + 1, metadata: { ...d.metadata, updatedAt: new Date().toISOString() }, pages })); setPageId(pages[Math.max(0, i - 1)].id); setSelection([]);
   };
   const reorderPage = (target: string) => {
     if (!pageDragId || pageDragId === target) return;
-    setDoc((d) => { const pages = [...d.pages], from = pages.findIndex((p) => p.id === pageDragId), to = pages.findIndex((p) => p.id === target), [moved] = pages.splice(from, 1); pages.splice(to, 0, moved); return { ...d, revision: d.revision + 1, pages }; }); setPageDragId(null);
+    setDoc((d) => { const pages = [...d.pages], from = pages.findIndex((p) => p.id === pageDragId), to = pages.findIndex((p) => p.id === target), [moved] = pages.splice(from, 1); pages.splice(to, 0, moved); return { ...d, revision: d.revision + 1, metadata: { ...d.metadata, updatedAt: new Date().toISOString() }, pages }; }); setPageDragId(null);
   };
   const alignSelection = (mode: "left" | "center" | "top" | "middle") => {
     if (selected.length < 2) return; const b = { l: Math.min(...selected.map((e) => e.frame.x)), r: Math.max(...selected.map((e) => e.frame.x + e.frame.w)), t: Math.min(...selected.map((e) => e.frame.y)), b: Math.max(...selected.map((e) => e.frame.y + e.frame.h)) };
@@ -645,9 +632,9 @@ export default function Home() {
 
   const applyJson = () => {
     try {
-      const parsed: unknown = JSON.parse(jsonValue);
-      if (!isPaperDOMDocument(parsed)) throw new Error("The file is not a valid PaperDOM 0.1 document.");
-      const next = normalizePaperDOMDocument({ ...parsed, revision: doc.revision + 1, metadata: { ...parsed.metadata, updatedAt: new Date().toISOString() } });
+      const parsed = parsePaperDOMDocument(JSON.parse(jsonValue));
+      if (!parsed.ok) throw new Error(`Invalid PaperDOM 0.1 document: ${parsed.error}`);
+      const next = { ...parsed.document, revision: doc.revision + 1, metadata: { ...parsed.document.metadata, updatedAt: new Date().toISOString() } };
       setDoc(next);
       setPageId(next.pages[0].id);
       setSelection([]);
@@ -661,9 +648,9 @@ export default function Home() {
   const importJsonFile = async (file?: File) => {
     if (!file) return;
     try {
-      const parsed: unknown = JSON.parse(await file.text());
-      if (!isPaperDOMDocument(parsed)) throw new Error("This JSON does not match the PaperDOM 0.1 schema.");
-      const next = normalizePaperDOMDocument({ ...parsed, revision: doc.revision + 1, metadata: { ...parsed.metadata, updatedAt: new Date().toISOString() } });
+      const parsed = parsePaperDOMDocument(JSON.parse(await file.text()));
+      if (!parsed.ok) throw new Error(`This JSON does not match the PaperDOM 0.1 schema: ${parsed.error}`);
+      const next = { ...parsed.document, revision: doc.revision + 1, metadata: { ...parsed.document.metadata, updatedAt: new Date().toISOString() } };
       setDoc(next);
       setPageId(next.pages[0].id);
       setSelection([]);
@@ -676,6 +663,10 @@ export default function Home() {
 
   const insertImageFile = useCallback((file?: File) => {
     if (!file || !file.type.startsWith("image/")) return;
+    if (file.size > MAX_IMAGE_BYTES) {
+      setSaveLabel("Image must be smaller than 2 MB");
+      return;
+    }
     const reader = new FileReader();
     reader.onload = () => {
       const id = uid("image");
@@ -688,6 +679,7 @@ export default function Home() {
       setSelection([id]);
       setTool("select");
     };
+    reader.onerror = () => setSaveLabel("Image could not be read");
     reader.readAsDataURL(file);
   }, [page.elements, page.id, patchPage]);
 
@@ -749,27 +741,19 @@ export default function Home() {
       plugins: doc.plugins,
     });
     const paperDOMApi = {
-      getDocument: () => structuredClone(doc),
+      getDocument: () => structuredClone(documentRef.current),
       sceneSummary,
-      transaction: (payload: { expectedRevision?: number; operations?: { op: string; pageId?: string; elementId?: string; element?: CanvasElement; patch?: Partial<CanvasElement>; ids?: string[]; text?: string }[] }) => {
-        if (payload.expectedRevision !== undefined && payload.expectedRevision !== doc.revision) return { ok: false, error: "revision_conflict", revision: doc.revision };
-        const changed = new Set<string>();
-        setDoc((current) => {
-          const next = structuredClone(current);
-          for (const operation of payload.operations ?? []) {
-            const targetPageId = operation.pageId ?? page.id;
-            const target = next.pages.find((p) => p.id === targetPageId);
-            if (!target) continue;
-            if (operation.op === "createElement" && operation.element) { target.elements.push(operation.element); changed.add(operation.element.id); }
-            if (operation.op === "patchElement" && operation.elementId && operation.patch) { target.elements = target.elements.map((e) => e.id === operation.elementId ? { ...e, ...operation.patch, frame: operation.patch?.frame ? { ...e.frame, ...operation.patch.frame } : e.frame, style: operation.patch?.style ? { ...e.style, ...operation.patch.style } : e.style } : e); changed.add(operation.elementId); }
-            if (operation.op === "deleteElements" && operation.ids) { target.elements = target.elements.filter((e) => !operation.ids!.includes(e.id)); operation.ids.forEach((id) => changed.add(id)); }
-            if (operation.op === "replaceText" && operation.elementId) { target.elements = target.elements.map((e) => e.id === operation.elementId ? { ...e, content: { ...e.content, text: operation.text ?? "" } } : e); changed.add(operation.elementId); }
-          }
-          next.revision = current.revision + 1;
-          next.metadata.updatedAt = new Date().toISOString();
-          return next;
-        });
-        return { ok: true, previousRevision: doc.revision, revision: doc.revision + 1, changedElementIds: [...changed] };
+      transaction: (payload: unknown) => {
+        const result = applyDocumentTransaction(documentRef.current, payload, page.id);
+        if (!result.ok) return result;
+        documentRef.current = result.document;
+        setDoc(result.document);
+        return {
+          ok: true,
+          previousRevision: result.previousRevision,
+          revision: result.revision,
+          changedElementIds: result.changedElementIds,
+        };
       },
     };
     const browserWindow = window as unknown as { paperdom?: unknown; canvasdoc?: unknown };
@@ -831,8 +815,8 @@ export default function Home() {
   return <main className="editor-shell">
     <header className="topbar">
       <div className="brand-block"><div className="brand-mark">P</div><div className="brand-name">PaperDOM</div><div className="workspace-badge">Workspace</div></div>
-      <div className="document-title-wrap"><input className="document-title" value={doc.title} onChange={(e) => setDoc((d) => ({ ...d, title: e.target.value }))} aria-label="Document title" /><div className="saved-state"><Cloud size={13} /><Check size={12} /> {saveLabel}</div></div>
-      <div className="top-actions"><button className="icon-button" title="Undo" disabled={!past.length} onClick={undo}><Undo2 size={17} /></button><button className="icon-button" title="Redo" disabled={!future.length} onClick={redo}><Redo2 size={17} /></button><span className="top-divider" /><button className="quiet-button" onClick={() => { setPresentIndex(doc.pages.findIndex((p) => p.id === page.id)); setPresenting(true); }}><Eye size={15} /> Preview</button><button className="quiet-button" onClick={openJson}><Braces size={15} /> JSON</button><button className="export-button" onClick={exportJson}><Share2 size={15} /> Export JSON <ChevronDown size={14} /></button><button className="present-button" onClick={() => { setPresentIndex(doc.pages.findIndex((p) => p.id === page.id)); setPresenting(true); }}><Play size={15} fill="currentColor" /> Present</button><div className="avatar">AF</div></div>
+      <div className="document-title-wrap"><input className="document-title" value={doc.title} onFocus={(e) => { titleBeforeEditRef.current = e.currentTarget.value; }} onChange={(e) => setDoc((d) => ({ ...d, title: e.target.value }))} onBlur={() => setDoc((d) => d.title === titleBeforeEditRef.current ? d : ({ ...d, revision: d.revision + 1, metadata: { ...d.metadata, updatedAt: new Date().toISOString() } }))} aria-label="Document title" /><div className="saved-state"><Cloud size={13} /><Check size={12} /> {saveLabel}</div></div>
+      <div className="top-actions"><button className="icon-button" title="Undo" disabled={!past.length} onClick={undo}><Undo2 size={17} /></button><button className="icon-button" title="Redo" disabled={!future.length} onClick={redo}><Redo2 size={17} /></button><span className="top-divider" /><button className="quiet-button" onClick={() => { setPresentIndex(doc.pages.findIndex((p) => p.id === page.id)); setPresenting(true); }}><Eye size={15} /> Preview</button><button className="quiet-button" onClick={openJson}><Braces size={15} /> JSON</button><button className="export-button" onClick={exportJson}><Share2 size={15} /> Export JSON <ChevronDown size={14} /></button><button className="present-button" onClick={() => { setPresentIndex(doc.pages.findIndex((p) => p.id === page.id)); setPresenting(true); }}><Play size={15} fill="currentColor" /> Present</button><div className="avatar" aria-label="PaperDOM workspace">PD</div></div>
     </header>
     <div className="editor-main">
       <aside className="page-rail">
@@ -915,7 +899,7 @@ export default function Home() {
     </div>}
 
     {presenting && presentPage && <div className="present-overlay">
-      <div className="present-top"><div className="present-brand"><div className="brand-mark">C</div><div><strong>{doc.title}</strong><span>Read-only presentation</span></div></div><button className="present-close" onClick={() => setPresenting(false)}><X size={18} /> Exit presentation</button></div>
+      <div className="present-top"><div className="present-brand"><div className="brand-mark">P</div><div><strong>{doc.title}</strong><span>Read-only presentation</span></div></div><button className="present-close" onClick={() => setPresenting(false)}><X size={18} /> Exit presentation</button></div>
       <div className="present-stage"><div className="present-frame" style={{ width: PAGE_W * presentScale, height: PAGE_H * presentScale }}><div style={{ transform: `scale(${presentScale})`, transformOrigin: "top left" }}><StaticPage page={presentPage} /></div></div></div>
       <div className="present-controls"><button disabled={presentIndex === 0} onClick={() => setPresentIndex((i) => Math.max(0, i - 1))}><ArrowLeft size={17} /></button><span><strong>{presentPage.name}</strong> · {presentIndex + 1} / {doc.pages.length}</span><button disabled={presentIndex === doc.pages.length - 1} onClick={() => setPresentIndex((i) => Math.min(doc.pages.length - 1, i + 1))}><ArrowRight size={17} /></button></div>
     </div>}
