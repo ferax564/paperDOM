@@ -92,6 +92,7 @@ export function diffDocuments(before: PaperDOMDocument, after: PaperDOMDocument)
       }
     }
   }
+  if (!equalValues(before.masters,after.masters)) for(const page of after.pages) changes.push({pageId:page.id,action:"updated",fields:["masters"]});
   if (!equalValues(before.library, after.library) || !equalValues(before.theme, after.theme)) {
     for (const page of after.pages) changes.push({ pageId: page.id, action: "updated", fields: ["library/theme"] });
   }

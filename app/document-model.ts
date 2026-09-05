@@ -1,6 +1,7 @@
+import {safeLink,safeMedia,replaceRunText,type TextRun,type AnimationCue,type MediaData} from './advanced-model.ts';
 import type { TableData, ChartData } from './presentation-tools.ts';
 import { validateLibrary, validateTheme, validateInstance, defaultTheme, type ComponentLibrary, type ComponentInstance, type Theme } from './component-library.ts';
-export type Kind = "text" | "shape" | "ellipse" | "connector" | "line" | "image" | "plugin" | "component" | "table" | "chart";
+export type Kind = "text" | "shape" | "ellipse" | "connector" | "line" | "image" | "plugin" | "component" | "table" | "chart" | "audio" | "video";
 export type Anchor = "top" | "right" | "bottom" | "left";
 export type Endpoint = { elementId?: string; anchor?: Anchor; x?: number; y?: number };
 export type Frame = { x: number; y: number; w: number; h: number; rotation: number };
@@ -53,6 +54,8 @@ export type CanvasElement = {
   chart?: ChartData;
   groupId?: string;
   aspectLocked?: boolean;
+  runs?: TextRun[];
+  media?: MediaData;
 };
 
 export type CanvasPage = {
@@ -62,6 +65,9 @@ export type CanvasPage = {
   hidden?: boolean;
   transition?: "none" | "fade" | "slide";
   advanceSeconds?: number;
+  masterId?: string;
+  inheritBackground?: boolean;
+  animations?: AnimationCue[];
   size: { width: number; height: number };
   background: { color: string };
   elements: CanvasElement[];
@@ -75,16 +81,18 @@ export type PaperDOMDocument = {
   revision: number;
   pages: CanvasPage[];
   plugins: { id: string; version: string }[];
+  masters?: CanvasPage[];
   library?: ComponentLibrary;
   theme?: Theme;
   metadata: { createdAt: string; updatedAt: string };
 };
 
 export type AgentOperation =
+  | {op:"setMasters";masters:CanvasPage[]}
   | { op: "setLibrary"; library: ComponentLibrary }
   | { op: "setTheme"; theme: Theme }
   | { op: "createPage"; page: CanvasPage; index?: number }
-  | { op: "patchPage"; pageId: string; patch: Partial<Pick<CanvasPage,"name"|"notes"|"background"|"size"|"hidden"|"transition"|"advanceSeconds">> }
+  | { op: "patchPage"; pageId: string; patch: Partial<Pick<CanvasPage,"name"|"notes"|"background"|"size"|"hidden"|"transition"|"advanceSeconds"|"masterId"|"animations"|"inheritBackground">> }
   | { op: "deletePage"; pageId: string }
   | { op: "reorderPages"; pageIds: string[] }
   | { op: "createElement"; pageId?: string; element: CanvasElement }
@@ -147,7 +155,7 @@ const DEFAULT_STYLE: ElementStyle = {
   verticalAlign: "middle",
   padding: 14,
 };
-const KINDS = new Set<Kind>(["text", "shape", "ellipse", "connector", "line", "image", "plugin", "component", "table", "chart"]);
+const KINDS = new Set<Kind>(["text", "shape", "ellipse", "connector", "line", "image", "plugin", "component", "table", "chart", "audio", "video"]);
 const ANCHORS = new Set<Anchor>(["top", "right", "bottom", "left"]);
 const TEXT_ALIGNS = new Set(["left", "center", "right"]);
 const VERTICAL_ALIGNS = new Set(["top", "middle", "bottom"]);
@@ -231,6 +239,18 @@ function validateElement(element: unknown, elementIds: Set<string>, path: string
   if(element.type==='chart') {
     const c=element.chart;
     if(!isRecord(c)||(c.kind!=='bar'&&c.kind!=='line')||typeof c.title!=='string'||!Array.isArray(c.labels)||!Array.isArray(c.values)||!c.labels.length||c.labels.length>50||c.values.length!==c.labels.length||c.labels.some(v=>typeof v!=='string')||c.values.some(v=>!isFiniteNumber(v)))return `${path}.chart requires matching labels and finite numeric values`;
+  }
+  if(element.runs!==undefined){
+    if(!Array.isArray(element.runs)||element.runs.length>10000)return `${path}.runs must be an array of at most 10000 runs`;
+    for(const r of element.runs){if(!isRecord(r)||typeof r.text!=='string'||(r.link!==undefined&&(typeof r.link!=='string'||(r.link!==''&&!safeLink(r.link)))))return `${path}.runs contains invalid text or hyperlink`;
+      if(r.style!==undefined){if(!isRecord(r.style))return `${path}.runs.style is invalid`;for(const [k,v]of Object.entries(r.style)){if(!['fontFamily','fontSize','fontWeight','fontStyle','underline','strike','color'].includes(k))return `${path}.runs.style field is invalid`;if(['fontSize','fontWeight'].includes(k)&&(!isFiniteNumber(v)||v<=0||v>1000))return `${path}.runs.style size is invalid`;if(['underline','strike'].includes(k)&&typeof v!=='boolean')return `${path}.runs.style flag is invalid`;if(k==='fontStyle'&&!['normal','italic'].includes(String(v)))return `${path}.runs.style font is invalid`;if(['color','fontFamily'].includes(k)&&(typeof v!=='string'||/\b(?:url|image-set)\s*\(/i.test(v)))return `${path}.runs.style paint is invalid`;}}
+    }
+    if(element.runs.map(r=>(r as TextRun).text).join('')!==(isRecord(element.content)?element.content.text:''))return `${path}.runs must match content.text`;
+  }
+  if(element.type==='audio'||element.type==='video'){
+    const m=element.media;if(!isRecord(m)||typeof m.src!=='string'||!safeMedia(m.src)||!['autoplay','loop','muted'].every(k=>typeof m[k]==='boolean')||!isFiniteNumber(m.start)||m.start<0||(m.end!==undefined&&(!isFiniteNumber(m.end)||m.end<=m.start)))return `${path}.media is invalid`;
+    if(m.poster!==undefined&&(typeof m.poster!=='string'||!/^https:\/\/|^data:image\/(png|jpeg|webp);base64,|^\/api\/assets\//i.test(m.poster)))return `${path}.media.poster is invalid`;
+    if(m.captions!==undefined&&(typeof m.captions!=='string'||!/^https:\/\/|^data:text\/vtt|^\/api\/assets\//i.test(m.captions)))return `${path}.media.captions is invalid`;
   }
   if (!isRecord(element.frame)) return `${path}.frame must be an object`;
   const frame = element.frame;
@@ -321,6 +341,8 @@ function validationError(value: unknown): string | null {
 
   if (value.library !== undefined) { const error = validateLibrary(value.library, validateElement); if (error) return error; }
   if (value.theme !== undefined) { const error = validateTheme(value.theme); if (error) return error; }
+  if(value.masters!==undefined){if(!Array.isArray(value.masters)||value.masters.length>100)return "masters must contain at most 100 pages";
+    if(value.masters.length){const error=validationError({...value,masters:undefined,pages:value.masters});if(error)return `masters: ${error}`;if(value.masters.some(m=>isRecord(m)&&m.masterId!==undefined))return "Masters cannot inherit other masters";}}
   const pageIds = new Set<string>();
   const documentElementIds = new Set<string>();
   for (let pageIndex = 0; pageIndex < value.pages.length; pageIndex += 1) {
@@ -334,6 +356,9 @@ function validationError(value: unknown): string | null {
     if (page.hidden !== undefined && typeof page.hidden !== 'boolean') return `${path}.hidden must be boolean`;
     if (page.transition !== undefined && !['none','fade','slide'].includes(page.transition as string)) return `${path}.transition is invalid`;
     if (page.advanceSeconds !== undefined && (!isFiniteNumber(page.advanceSeconds)||page.advanceSeconds<0||page.advanceSeconds>3600)) return `${path}.advanceSeconds must be 0–3600`;
+    if(page.inheritBackground!==undefined&&typeof page.inheritBackground!=="boolean")return `${path}.inheritBackground must be boolean`;
+    if(page.masterId!==undefined&&(!isNonEmptyString(page.masterId)||!Array.isArray(value.masters)||!value.masters.some(m=>isRecord(m)&&m.id===page.masterId)))return `${path}.masterId is invalid`;
+    if(page.animations!==undefined){if(!Array.isArray(page.animations)||page.animations.length>200)return `${path}.animations is invalid`;const ids=new Set();for(const c of page.animations){if(!isRecord(c)||!isNonEmptyString(c.id)||ids.has(c.id)||!Array.isArray(page.elements)||!page.elements.some(e=>isRecord(e)&&e.id===c.elementId)||!['appear','fade-in','fade-out','fly-in','zoom','spin','pulse','move'].includes(String(c.effect))||!['click','with-previous','after-previous'].includes(String(c.trigger))||!isFiniteNumber(c.duration)||c.duration<0||c.duration>60||!isFiniteNumber(c.delay)||c.delay<0||c.delay>3600||['dx','dy'].some(k=>c[k]!==undefined&&!isFiniteNumber(c[k])))return `${path}.animations contains an invalid cue`;ids.add(c.id);}}
     if (page.notes !== undefined && typeof page.notes !== "string") return `${path}.notes must be a string`;
     if (!isRecord(page.size) || !isFiniteNumber(page.size.width) || !isFiniteNumber(page.size.height) || page.size.width <= 0 || page.size.height <= 0) {
       return `${path}.size must contain positive finite dimensions`;
@@ -422,7 +447,7 @@ export function applyDocumentTransaction(
   const operations = payload.operations as unknown[];
   const next: PaperDOMDocument = structuredClone(document);
   const changed = new Set<string>();
-  const supportedOperations = new Set(["createElement", "patchElement", "deleteElements", "replaceText", "createPage", "patchPage", "deletePage", "reorderPages", "setLibrary", "setTheme"]);
+  const supportedOperations = new Set(["createElement", "patchElement", "deleteElements", "replaceText", "createPage", "patchPage", "deletePage", "reorderPages", "setLibrary", "setTheme", "setMasters"]);
 
   for (let index = 0; index < operations.length; index += 1) {
     const candidateOperation = operations[index];
@@ -430,6 +455,7 @@ export function applyDocumentTransaction(
       return transactionError(document, "invalid_operation", "Unsupported operation", index);
     }
     const operation: Record<string, unknown> = candidateOperation;
+    if(operation.op==="setMasters"){next.masters=structuredClone(operation.masters) as CanvasPage[];continue;}
     if (operation.op === "setLibrary") {
       const error = validateLibrary(operation.library, validateElement);
       if (error) return transactionError(document, "invalid_operation", error, index);
@@ -480,7 +506,7 @@ export function applyDocumentTransaction(
       continue;
     }
     if (operation.op === "patchPage") {
-      if (!isRecord(operation.patch) || Object.keys(operation.patch).some((key) => !["name", "notes", "background", "size", "hidden", "transition", "advanceSeconds"].includes(key))) {
+      if (!isRecord(operation.patch) || Object.keys(operation.patch).some((key) => !["name", "notes", "background", "size", "hidden", "transition", "advanceSeconds", "masterId", "animations", "inheritBackground"].includes(key))) {
         return transactionError(document, "invalid_operation", "patchPage supports name, notes, background, size, hidden, transition, and advanceSeconds", index);
       }
       Object.assign(page, structuredClone(operation.patch));
@@ -515,6 +541,7 @@ export function applyDocumentTransaction(
         style: patch.style ? { ...current.style, ...patch.style } : current.style,
         content: patch.content ? { ...current.content, ...patch.content } : current.content,
       };
+      if(current.runs&&patch.content?.text!==undefined&&patch.runs===undefined)page.elements[elementIndex].runs=replaceRunText(current.runs,patch.content.text);
       changed.add(current.id);
       continue;
     }
@@ -540,6 +567,7 @@ export function applyDocumentTransaction(
         }
         return true;
       });
+      page.animations=page.animations?.filter(c=>page.elements.some(e=>e.id===c.elementId));
       continue;
     }
 
@@ -551,6 +579,7 @@ export function applyDocumentTransaction(
     if (!["text", "shape", "ellipse"].includes(element.type)) {
       return transactionError(document, "invalid_operation", "replaceText only supports text-bearing elements", index);
     }
+    if(element.runs)element.runs=replaceRunText(element.runs,operation.text);
     element.content = { ...element.content, text: operation.text };
     element.name = operation.text.trim().slice(0, 28) || "Text box";
     changed.add(element.id);
