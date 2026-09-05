@@ -1,5 +1,7 @@
 # PaperDOM
 
+PaperDOM now includes **10 reusable components, 6 slide templates, shared themes, and 3 editable example decks**. Open **Library** in the editor to compose a deck or save your own pieces. Read the [component and template guide](docs/component-library.md).
+
 **An HTML-native visual editor for documents and presentations.**
 
 PaperDOM combines freeform PowerPoint-style editing with a structured, machine-readable document model. Every visible object is rendered with HTML, represented in JSON, and addressable by a stable ID—so people, plugins, and AI agents can work on the same document.

@@ -100,3 +100,7 @@ npm run cli -- apply deck.paperdom.json proposal.json updated.paperdom.json
 ```
 
 The CLI consumes UTF-8 JSON and emits JSON. Failed validation/transactions exit with code 1. `apply` creates a new output file exclusively and refuses to overwrite existing files, including its input. Preview never writes a document. Use `node --experimental-strip-types scripts/paperdom.mjs ...` directly for machine-readable stdout without npm's script banner. Node >=22.13 is required; no build or dependencies are needed for these headless commands.
+
+## Reusable library extension
+
+See the [component library contract](component-library.md) for embedded `library` and `theme` fields, the `component` element kind, `setLibrary` / `setTheme` transactions, and the component/template agent API (version 0.3).

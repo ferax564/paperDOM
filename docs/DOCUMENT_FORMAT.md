@@ -105,3 +105,7 @@ Version 0.1 has no formal JSON Schema file yet. `app/document-model.ts` is the e
 ## Speaker notes
 
 Pages may include `notes: "Plain-text speaker notes"`. This optional addition does not change version 0.1 and existing documents require no migration. Notes survive parsing and JSON export and are available in outlines and proposal previews. They are not drawn on the presentation canvas.
+
+## Reusable library extension
+
+See the [component library contract](component-library.md) for embedded `library` and `theme` fields, the `component` element kind, `setLibrary` / `setTheme` transactions, and the component/template agent API (version 0.3).

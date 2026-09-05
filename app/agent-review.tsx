@@ -10,7 +10,7 @@ export function AgentReview({ document, pageId, initialPreview, onApply, onClose
   initialPreview?: TransactionPreview;
   onApply: (preview: TransactionPreview) => { ok: boolean; message?: string };
   onClose: () => void;
-  renderPage: (page: CanvasPage) => ReactNode;
+  renderPage: (page: CanvasPage, document: PaperDOMDocument) => ReactNode;
 }) {
   const dialogRef = useRef<HTMLDialogElement>(null);
   const [source, setSource] = useState(() => JSON.stringify(initialPreview?.payload ?? {
@@ -61,7 +61,7 @@ export function AgentReview({ document, pageId, initialPreview, onApply, onClose
             <div className="review-comparison">{[{ label: "Before", document: preview.before }, { label: "After", document: preview.document }].map(({ label, document }) => {
               const page = document.pages.find((page) => page.id === currentPageId);
               const scale = page ? Math.min(300 / page.size.width, 190 / page.size.height) : 1;
-              return <figure key={label}><figcaption>{label}</figcaption>{page ? <><div className="review-thumbnail" style={{ width: page.size.width * scale, height: page.size.height * scale }}><div style={{ transform: `scale(${scale})`, transformOrigin: "top left" }}>{renderPage(page)}</div></div><p className="review-notes">Notes: {page.notes || "None"}</p></> : <div className="review-missing">Page {label === "Before" ? "will be created" : "will be deleted"}</div>}</figure>;
+              return <figure key={label}><figcaption>{label}</figcaption>{page ? <><div className="review-thumbnail" style={{ width: page.size.width * scale, height: page.size.height * scale }}><div style={{ transform: `scale(${scale})`, transformOrigin: "top left" }}>{renderPage(page, document)}</div></div><p className="review-notes">Notes: {page.notes || "None"}</p></> : <div className="review-missing">Page {label === "Before" ? "will be created" : "will be deleted"}</div>}</figure>;
             })}</div></>}
           <h4>{preview.changes.length} changes</h4>
           <ul className="review-changes">{preview.changes.map((change, index) => <li key={index}><strong>{change.action}</strong> <code>{change.elementId ?? change.pageId}</code>{change.fields.length > 0 && ` · ${change.fields.join(", ")}`}</li>)}</ul>

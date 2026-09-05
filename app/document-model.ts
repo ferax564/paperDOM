@@ -1,4 +1,5 @@
-export type Kind = "text" | "shape" | "ellipse" | "connector" | "line" | "image" | "plugin";
+import { validateLibrary, validateTheme, validateInstance, defaultTheme, type ComponentLibrary, type ComponentInstance, type Theme } from './component-library.ts';
+export type Kind = "text" | "shape" | "ellipse" | "connector" | "line" | "image" | "plugin" | "component";
 export type Anchor = "top" | "right" | "bottom" | "left";
 export type Endpoint = { elementId?: string; anchor?: Anchor; x?: number; y?: number };
 export type Frame = { x: number; y: number; w: number; h: number; rotation: number };
@@ -46,6 +47,7 @@ export type CanvasElement = {
   from?: Endpoint;
   to?: Endpoint;
   content?: ElementContent;
+  component?: ComponentInstance;
 };
 
 export type CanvasPage = {
@@ -65,10 +67,14 @@ export type PaperDOMDocument = {
   revision: number;
   pages: CanvasPage[];
   plugins: { id: string; version: string }[];
+  library?: ComponentLibrary;
+  theme?: Theme;
   metadata: { createdAt: string; updatedAt: string };
 };
 
 export type AgentOperation =
+  | { op: "setLibrary"; library: ComponentLibrary }
+  | { op: "setTheme"; theme: Theme }
   | { op: "createPage"; page: CanvasPage; index?: number }
   | { op: "patchPage"; pageId: string; patch: { name?: string; notes?: string; background?: { color: string } } }
   | { op: "deletePage"; pageId: string }
@@ -133,7 +139,7 @@ const DEFAULT_STYLE: ElementStyle = {
   verticalAlign: "middle",
   padding: 14,
 };
-const KINDS = new Set<Kind>(["text", "shape", "ellipse", "connector", "line", "image", "plugin"]);
+const KINDS = new Set<Kind>(["text", "shape", "ellipse", "connector", "line", "image", "plugin", "component"]);
 const ANCHORS = new Set<Anchor>(["top", "right", "bottom", "left"]);
 const TEXT_ALIGNS = new Set(["left", "center", "right"]);
 const VERTICAL_ALIGNS = new Set(["top", "middle", "bottom"]);
@@ -293,6 +299,8 @@ function validationError(value: unknown): string | null {
   }
   if (!Array.isArray(value.pages) || value.pages.length === 0) return "pages must be a non-empty array";
 
+  if (value.library !== undefined) { const error = validateLibrary(value.library, validateElement); if (error) return error; }
+  if (value.theme !== undefined) { const error = validateTheme(value.theme); if (error) return error; }
   const pageIds = new Set<string>();
   const documentElementIds = new Set<string>();
   for (let pageIndex = 0; pageIndex < value.pages.length; pageIndex += 1) {
@@ -322,6 +330,8 @@ function validationError(value: unknown): string | null {
     for (let elementIndex = 0; elementIndex < page.elements.length; elementIndex += 1) {
       const error = validateElement(page.elements[elementIndex], elementIds, `${path}.elements[${elementIndex}]`);
       if (error) return error;
+      const instanceError = validateInstance(page.elements[elementIndex] as CanvasElement, value.library as ComponentLibrary | undefined, (value.theme as Theme | undefined) ?? defaultTheme, validateElement);
+      if (instanceError) return instanceError;
     }
   }
   return null;
@@ -388,7 +398,7 @@ export function applyDocumentTransaction(
   const operations = payload.operations as unknown[];
   const next: PaperDOMDocument = structuredClone(document);
   const changed = new Set<string>();
-  const supportedOperations = new Set(["createElement", "patchElement", "deleteElements", "replaceText", "createPage", "patchPage", "deletePage", "reorderPages"]);
+  const supportedOperations = new Set(["createElement", "patchElement", "deleteElements", "replaceText", "createPage", "patchPage", "deletePage", "reorderPages", "setLibrary", "setTheme"]);
 
   for (let index = 0; index < operations.length; index += 1) {
     const candidateOperation = operations[index];
@@ -396,6 +406,18 @@ export function applyDocumentTransaction(
       return transactionError(document, "invalid_operation", "Unsupported operation", index);
     }
     const operation: Record<string, unknown> = candidateOperation;
+    if (operation.op === "setLibrary") {
+      const error = validateLibrary(operation.library, validateElement);
+      if (error) return transactionError(document, "invalid_operation", error, index);
+      next.library = structuredClone(operation.library) as ComponentLibrary;
+      continue;
+    }
+    if (operation.op === "setTheme") {
+      const error = validateTheme(operation.theme);
+      if (error) return transactionError(document, "invalid_operation", error, index);
+      next.theme = structuredClone(operation.theme) as Theme;
+      continue;
+    }
     if (operation.op === "createPage") {
       if (!isRecord(operation.page) || !isNonEmptyString(operation.page.id) || !Array.isArray(operation.page.elements) ||
         operation.page.elements.some((element) => !isRecord(element) || !isNonEmptyString(element.id))) {

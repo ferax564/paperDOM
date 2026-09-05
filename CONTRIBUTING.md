@@ -32,3 +32,7 @@ npm test
 Explain what changed, why, user-visible impact, migration implications, and the checks run. Keep unrelated refactors separate from behavior changes.
 
 By contributing, you agree that your contribution is licensed under the repository's MIT License.
+
+## Reusable components and templates
+
+See [the library contribution guide](docs/component-library.md#contribute-a-building-block). Add examples, preserve existing document compatibility, and regenerate downloadable JSON with `npm run examples:generate` when editing the starter catalog.
