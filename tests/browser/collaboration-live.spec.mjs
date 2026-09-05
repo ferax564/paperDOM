@@ -3,7 +3,7 @@ import {collaborationHarness} from '../helpers/collaboration.mjs';
 import {collaborationAPI} from '../../server/collaboration.ts';
 import {documentFixture} from '../fixtures/document.mjs';
 import {powerPointBytes} from '../../app/presentation-export.ts';
-const text = page => page.evaluate(()=>window.paperdom.getDocument().pages[0].elements[0].content.text);
+const text = page => page.evaluate(()=>window.paperdom?.getDocument().pages[0].elements[0].content.text);
 async function routeUser(context,env,user){
     await context.route('**/api/decks**',async route=>{
         const r=route.request(),response=await collaborationAPI(new Request(r.url(),{method:r.method(),headers:{...r.headers(),'oai-authenticated-user-id':user,'oai-authenticated-user-email':user+'@example.com'},body:r.postData()??undefined}),env);
@@ -25,6 +25,7 @@ test('two active editors merge characters, keep the caret, and persist without b
         await expect(le).toBeFocused();await expect(re).toBeFocused();
         await left.keyboard.insertText('there ');
         await expect.poll(()=>text(right),{timeout:15000}).toBe('Hi there Hello world!');
+        await left.keyboard.press('Escape');await expect(le).toHaveText('Hi there Hello world!');
         await expect.poll(async()=> (await call(`/${saved.id}`,'GET',undefined,'alice')).document.pages[0].elements[0].content.text).toBe('Hi there Hello world!');
     }finally{await a.close();await b.close();sql.close();}
 });

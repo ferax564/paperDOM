@@ -31,8 +31,8 @@ export function InlineText({ item, editing, register, onText, onComposing, ...pr
             selection.setBaseAndExtent(target, mapTextOffset(before, text, anchor), target, mapTextOffset(before, text, focus));
         }
     }, [editing, text]);
-    useLayoutEffect(() => () => onComposing(false), [onComposing]);
-    return <div {...props} ref={node => { ref.current = node; register(node); }} contentEditable={editing ? 'plaintext-only' : false} suppressContentEditableWarning
+    useLayoutEffect(() => { if (!editing) { composing.current = false; onComposing(false); } return () => onComposing(false); }, [editing, onComposing]);
+    return <div key={editing ? 'editing' : 'display'} {...props} ref={node => { ref.current = node; register(node); }} contentEditable={editing ? 'plaintext-only' : false} suppressContentEditableWarning
         onInput={event => { if (!composing.current) onText(event.currentTarget.innerText); }}
         onCompositionStart={() => { composing.current = true; onComposing(true); }}
         onCompositionEnd={event => { composing.current = false; onText(event.currentTarget.innerText); onComposing(false); }}

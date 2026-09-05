@@ -128,6 +128,6 @@ The next interoperability work is full native timing, placeholder and theme inhe
 
 ## Source restoration
 
-PowerPoint downloads include standard editable slides and a `paperdom/document.json` source snapshot. Normal import reads the actual PowerPoint slides, so later PowerPoint edits are respected. Code integrations can explicitly request `importPowerPoint(buffer, name, {restoreSource:true})` to recover the original PaperDOM model, including components and motion. That option deliberately ignores later edits made in PowerPoint; it is not general lossless Office round-trip compatibility.
+Regenerated PowerPoint downloads include standard editable slides and a `paperdom/document.json` source snapshot. Normal import reads the actual PowerPoint slides, so later PowerPoint edits are respected. Code integrations can explicitly request `importPowerPoint(buffer, name, {restoreSource:true})` to recover the original PaperDOM model, including components and motion. That option deliberately ignores later edits made in PowerPoint; it is not general lossless Office round-trip compatibility.
 
 See [shared editing setup](./SHARED-EDITING.md) and the [presentation lab example](../public/examples/presentation-lab.paperdom.json).

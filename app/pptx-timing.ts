@@ -4,7 +4,8 @@ const escape = (s: string) => s.replaceAll('&', '&amp;').replaceAll('"', '&quot;
 const ms = (seconds: number) => Math.max(1, Math.round(seconds * 1000));
 
 /** Adds standard PresentationML behaviors to generated slides; does not rewrite imported packages. */
-export function addPowerPointTiming(xml: string, page: CanvasPage): string {
+export function addPowerPointTiming(xml: string, page: CanvasPage, slideSize = page.size): string {
+    const fit = Math.min(slideSize.width / page.size.width, slideSize.height / page.size.height);
     let id = 2;
     const targets = new Map<string, string[]>();
     for (const match of xml.matchAll(/<p:cNvPr\b([^>]*)/g)) {
@@ -25,7 +26,7 @@ export function addPowerPointTiming(xml: string, page: CanvasPage): string {
             case 'pulse': return `<p:animScale>${behavior(shapeId, cue, 'ppt_w,ppt_h').replace('fill="hold"', 'fill="hold" autoRev="1"').replace(`dur="${ms(cue.duration)}"`, `dur="${ms(cue.duration / 2)}"`)}<p:from x="100000" y="100000"/><p:to x="112000" y="112000"/></p:animScale>`;
             case 'fly-in':
             case 'move': {
-                const dx = (cue.dx ?? (cue.effect === 'fly-in' ? -120 : 100)) / page.size.width, dy = (cue.dy ?? 0) / page.size.height;
+                const dx = (cue.dx ?? (cue.effect === 'fly-in' ? -120 : 100)) * fit / slideSize.width, dy = (cue.dy ?? 0) * fit / slideSize.height;
                 const path = cue.effect === 'fly-in' ? `M ${dx} ${dy} L 0 0 E` : `M 0 0 L ${dx} ${dy} E`;
                 return (cue.effect === 'fly-in' ? visible + fade('in') : '') + `<p:animMotion origin="layout" path="${path}" pathEditMode="fixed">${behavior(shapeId, cue, 'ppt_x,ppt_y')}</p:animMotion>`;
             }
@@ -34,13 +35,13 @@ export function addPowerPointTiming(xml: string, page: CanvasPage): string {
     const batches = animationBatches((page.animations ?? []).filter(c => targets.has(escape(c.elementId))));
     const groups = batches.map(batch => {
         const groupId = ++id;
-        const children = batch.map(({ cue, at }, index) => {
+        const children = batch.map(({ cue, at }) => {
             const entrance = ['appear', 'fade-in', 'fly-in', 'zoom'].includes(cue.effect);
             const cueId = ++id;
             const children = targets.get(escape(cue.elementId))!.map(shapeId => effect(shapeId, cue)).join('');
-            return `<p:par><p:cTn id="${cueId}" fill="hold" presetClass="${entrance ? 'entr' : cue.effect === 'fade-out' ? 'exit' : cue.effect === 'move' ? 'path' : 'emph'}" nodeType="${index === 0 ? 'clickEffect' : cue.trigger === 'after-previous' ? 'afterEffect' : 'withEffect'}"><p:stCondLst><p:cond delay="${Math.round(at * 1000)}"/></p:stCondLst><p:childTnLst>${children}</p:childTnLst></p:cTn></p:par>`;
+            return `<p:par><p:cTn id="${cueId}" fill="hold" presetClass="${entrance ? 'entr' : cue.effect === 'fade-out' ? 'exit' : cue.effect === 'move' ? 'path' : 'emph'}" nodeType="${cue.trigger === 'click' ? 'clickEffect' : cue.trigger === 'after-previous' ? 'afterEffect' : 'withEffect'}"><p:stCondLst><p:cond delay="${Math.round(at * 1000)}"/></p:stCondLst><p:childTnLst>${children}</p:childTnLst></p:cTn></p:par>`;
         }).join('');
-        return `<p:par><p:cTn id="${groupId}" fill="hold"><p:stCondLst><p:cond delay="indefinite"/></p:stCondLst><p:childTnLst>${children}</p:childTnLst></p:cTn></p:par>`;
+        return `<p:par><p:cTn id="${groupId}" fill="hold"><p:stCondLst><p:cond delay="${batch[0].cue.trigger === 'click' ? 'indefinite' : '0'}"/></p:stCondLst><p:childTnLst>${children}</p:childTnLst></p:cTn></p:par>`;
     }).join('');
     const transition = page.transition && page.transition !== 'none' || page.advanceSeconds ? `<p:transition${page.advanceSeconds ? ` advTm="${Math.round(page.advanceSeconds * 1000)}"` : ''}>${page.transition === 'fade' ? '<p:fade/>' : page.transition === 'slide' ? '<p:push dir="l"/>' : ''}</p:transition>` : '';
     const timing = groups ? `<p:timing><p:tnLst><p:par><p:cTn id="1" dur="indefinite" restart="never" nodeType="tmRoot"><p:childTnLst><p:seq concurrent="1" nextAc="seek"><p:cTn id="2" dur="indefinite" nodeType="mainSeq"><p:childTnLst>${groups}</p:childTnLst></p:cTn><p:prevCondLst><p:cond evt="onPrev" delay="0"><p:tgtEl><p:sldTgt/></p:tgtEl></p:cond></p:prevCondLst><p:nextCondLst><p:cond evt="onNext" delay="0"><p:tgtEl><p:sldTgt/></p:tgtEl></p:cond></p:nextCondLst></p:seq></p:childTnLst></p:cTn></p:par></p:tnLst></p:timing>` : '';
