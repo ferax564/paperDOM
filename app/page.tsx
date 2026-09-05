@@ -29,6 +29,9 @@ import {
   type PaperDOMDocument,
 } from "./document-model";
 import { createAgentAPI, isPreviewCurrent, type TransactionPreview } from "./agent-api.ts";
+import { LibraryPanel } from './library-panel';
+import { resolveComponent, defaultTheme, themes, selectionToComponent, instantiateTemplate, type ComponentLibrary } from './component-library.ts';
+import { effectiveLibrary, createExampleDeck } from './starter-library.ts';
 import { AgentReview } from "./agent-review";
 import { listModeForText, toggleListStyle, type ListMode } from "./text-formatting";
 
@@ -171,7 +174,7 @@ function snapEndpoint(x: number, y: number, elements: CanvasElement[]): Endpoint
   return best?.endpoint ?? { x, y };
 }
 
-function StaticPage({ page }: { page: CanvasPage }) {
+function StaticPage({ page, document }: { page: CanvasPage; document?: PaperDOMDocument }) {
   const markerId = useId();
   return <div className="static-page" style={{ background: page.background.color, width: page.size.width, height: page.size.height }}>
     <svg className="connector-layer" viewBox={`0 0 ${page.size.width} ${page.size.height}`} aria-hidden="true">
@@ -183,26 +186,29 @@ function StaticPage({ page }: { page: CanvasPage }) {
     </svg>
     {[...page.elements].filter((e) => !e.hidden && !["connector", "line"].includes(e.type)).sort((a, b) => a.z - b.z).map((item) =>
       <div key={item.id} className={`canvas-element element-${item.type === "text" ? "textbox" : item.type}`} style={{ left: item.frame.x, top: item.frame.y, width: item.frame.w, height: item.frame.h, transform: `rotate(${item.frame.rotation}deg)`, zIndex: item.z, opacity: item.style.opacity, background: item.style.fill, borderColor: item.style.stroke, borderWidth: item.style.strokeWidth, borderRadius: item.type === "ellipse" ? 999 : item.style.radius, color: item.style.color, fontSize: item.style.fontSize, fontWeight: item.style.fontWeight, fontFamily: item.style.fontFamily ?? DEFAULT_FONT, fontStyle: item.style.fontStyle ?? "normal", textDecoration: item.style.underline && item.style.strike ? "underline line-through" : item.style.underline ? "underline" : item.style.strike ? "line-through" : "none", lineHeight: item.style.lineHeight ?? 1.28, letterSpacing: item.style.letterSpacing ?? 0, textAlign: item.style.textAlign, alignItems: ["text", "shape", "ellipse"].includes(item.type) ? (item.style.verticalAlign === "bottom" ? "flex-end" : item.style.verticalAlign === "middle" || !item.style.verticalAlign ? "center" : "flex-start") : "stretch" }}>
-        {item.type === "plugin" ? <div className="kpi-card"><div className="kpi-icon" style={{ background: item.content?.accent ?? "#6d5dfc" }}><span /></div><div className="kpi-label">{item.content?.label}</div><div className="kpi-value">{item.content?.value}</div><div className="kpi-trend" style={{ color: item.content?.accent }}>↗ {item.content?.trend}</div></div>
+        {item.type === "component" && document ? <ComponentView item={item} document={document} /> : item.type === "plugin" ? <div className="kpi-card"><div className="kpi-icon" style={{ background: item.content?.accent ?? "#6d5dfc" }}><span /></div><div className="kpi-label">{item.content?.label}</div><div className="kpi-value">{item.content?.value}</div><div className="kpi-trend" style={{ color: item.content?.accent }}>↗ {item.content?.trend}</div></div>
           : item.type === "image" ? (item.content?.src ? <img src={item.content.src} alt={item.content.alt ?? ""} /> : <div className="image-placeholder"><ImageIcon size={46} /><span>Image</span></div>)
           : <div className="element-text" style={{ padding: item.style.padding ?? 12 }}>{item.content?.text}</div>}
       </div>)}
   </div>;
 }
 
+function ComponentView({item,document}:{item:CanvasElement;document:PaperDOMDocument}) {
+  return <div className="component-content"><StaticPage page={{id:item.id,name:item.name,size:{width:item.frame.w,height:item.frame.h},background:{color:'transparent'},elements:resolveComponent(item,effectiveLibrary(document),document.theme??defaultTheme)}} document={document}/></div>;
+}
+
 function Field({ label, value, onChange, min, max, step }: { label: string; value: number; onChange: (value: number) => void; min?: number; max?: number; step?: number }) {
   return <label className="field"><span>{label}</span><input type="number" value={Math.round(value * 100) / 100} min={min} max={max} step={step} onChange={(e) => onChange(Number(e.target.value))} /></label>;
 }
 
-function MiniPage({ page }: { page: CanvasPage }) {
-  return <div className="mini-page" style={{ background: page.background.color }}><div className="mini-page-inner">
-    {page.elements.filter((e) => !e.hidden && !["connector", "line"].includes(e.type)).map((e) =>
-      <div key={e.id} className={`mini-element mini-${e.type}`} style={{ left: `${e.frame.x / PAGE_W * 100}%`, top: `${e.frame.y / PAGE_H * 100}%`, width: `${e.frame.w / PAGE_W * 100}%`, height: `${e.frame.h / PAGE_H * 100}%`, background: e.style.fill, borderColor: e.style.stroke, borderRadius: e.type === "ellipse" ? 999 : Math.max(2, e.style.radius / 4) }} />)}
-  </div></div>;
+function MiniPage({ page, document }: { page: CanvasPage; document:PaperDOMDocument }) {
+  return <div className="mini-page"><svg viewBox={`0 0 ${page.size.width} ${page.size.height}`} width="100%" height="100%" aria-hidden="true"><foreignObject width={page.size.width} height={page.size.height}><StaticPage page={page} document={document}/></foreignObject></svg></div>;
 }
+
 
 export default function Home() {
   const [doc, setDoc] = useState<PaperDOMDocument>(initialDocument);
+  const [libraryOpen,setLibraryOpen] = useState(false);
   const [past, setPast] = useState<PaperDOMDocument[]>([]);
   const [future, setFuture] = useState<PaperDOMDocument[]>([]);
   const [pageId, setPageId] = useState(initialDocument.pages[0].id);
@@ -780,13 +786,33 @@ export default function Home() {
   const presentPage = doc.pages[Math.min(presentIndex, doc.pages.length - 1)];
   const presentScale = Math.max(0.35, Math.min(1, (viewport.width - 90) / PAGE_W, (viewport.height - 150) / PAGE_H));
 
+  const requireSuccess = (result: {ok:boolean;message?:string}) => { if(!result.ok) throw new Error(result.message??'Unable to apply changes'); };
+  const installLibrary = (library:ComponentLibrary) => requireSuccess(getAgentAPI().installLibrary(library));
+  const addExample = (id:string) => {
+    const example=createExampleDeck(id), current=effectiveLibrary(documentRef.current);
+    const library={...current,components:[...current.components,...example.library!.components.filter(c=>!current.components.some(e=>e.id===c.id))]};
+    const pages=example.pages.map(p=>instantiateTemplate({id:p.id,name:p.name,description:'',page:p},uid('example')));
+    requireSuccess(getAgentAPI().transaction({operations:[{op:'setLibrary',library},...pages.map(p=>({op:'createPage',page:p}))]}));
+    setPageId(pages[0].id);setSelection([]);setLibraryOpen(false);
+  };
+  const saveSelection = (name:string) => {
+    const library=effectiveLibrary(documentRef.current),definition=selectionToComponent(selected,uid('custom'),name);
+    installLibrary({...library,components:[...library.components,definition]});
+  };
+  const importLibrary = (value:unknown) => {
+    // Validate the package in isolation before inspecting arrays or merging IDs.
+    const checked=parsePaperDOMDocument({...initialDocument,library:value});
+    if(!checked.ok)throw new Error(checked.error);
+    const incoming=checked.document.library!,current=effectiveLibrary(documentRef.current);
+    installLibrary({...current,components:[...current.components.filter(c=>!incoming.components.some(n=>n.id===c.id)),...incoming.components],templates:[...current.templates.filter(t=>!incoming.templates.some(n=>n.id===t.id)),...incoming.templates]});
+  };
   const renderElement = (item: CanvasElement) => {
     if (item.hidden || ["connector", "line"].includes(item.type)) return null;
     const isSelected = selection.includes(item.id), editing = editingId === item.id;
     return <div key={item.id} data-element-id={item.id} className={`canvas-element element-${item.type === "text" ? "textbox" : item.type} ${isSelected ? "selected" : ""} ${editing ? "editing" : ""}`}
       style={{ left: item.frame.x, top: item.frame.y, width: item.frame.w, height: item.frame.h, transform: `rotate(${item.frame.rotation}deg)`, zIndex: item.z, opacity: item.style.opacity, background: item.style.fill, borderColor: item.style.stroke, borderWidth: item.style.strokeWidth, borderRadius: item.type === "ellipse" ? 999 : item.style.radius, color: item.style.color, fontSize: item.style.fontSize, fontWeight: item.style.fontWeight, fontFamily: item.style.fontFamily ?? DEFAULT_FONT, fontStyle: item.style.fontStyle ?? "normal", textDecoration: item.style.underline && item.style.strike ? "underline line-through" : item.style.underline ? "underline" : item.style.strike ? "line-through" : "none", lineHeight: item.style.lineHeight ?? 1.28, letterSpacing: item.style.letterSpacing ?? 0, textAlign: item.style.textAlign, alignItems: ["text", "shape", "ellipse"].includes(item.type) ? (item.style.verticalAlign === "bottom" ? "flex-end" : item.style.verticalAlign === "middle" || !item.style.verticalAlign ? "center" : "flex-start") : "stretch" }}
       onPointerDown={(e) => beginElementGesture(e, item)} onDoubleClick={(e) => { e.stopPropagation(); if (["text", "shape", "ellipse"].includes(item.type)) setEditingId(item.id); }}>
-      {item.type === "plugin" ? <div className="kpi-card"><div className="kpi-icon" style={{ background: item.content?.accent ?? "#6d5dfc" }}><span /></div><div className="kpi-label">{item.content?.label}</div><div className="kpi-value">{item.content?.value}</div><div className="kpi-trend" style={{ color: item.content?.accent }}>↗ {item.content?.trend}</div></div>
+      {item.type === "component" ? <ComponentView item={item} document={doc}/> : item.type === "plugin" ? <div className="kpi-card"><div className="kpi-icon" style={{ background: item.content?.accent ?? "#6d5dfc" }}><span /></div><div className="kpi-label">{item.content?.label}</div><div className="kpi-value">{item.content?.value}</div><div className="kpi-trend" style={{ color: item.content?.accent }}>↗ {item.content?.trend}</div></div>
         : item.type === "image" ? (item.content?.src ? <img src={item.content.src} alt={item.content.alt ?? ""} draggable={false} /> : <div className="image-placeholder"><ImageIcon size={46} /><span>Drop or paste an image</span></div>)
         : <div
           ref={(node) => { if (node) textEditorRefs.current.set(item.id, node); else textEditorRefs.current.delete(item.id); }}
@@ -832,13 +858,13 @@ export default function Home() {
     <header className="topbar">
       <div className="brand-block"><div className="brand-mark">P</div><div className="brand-name">PaperDOM</div><div className="workspace-badge">Workspace</div></div>
       <div className="document-title-wrap"><input className="document-title" value={doc.title} onFocus={(e) => { titleBeforeEditRef.current = e.currentTarget.value; }} onChange={(e) => setDoc((d) => ({ ...d, title: e.target.value }))} onBlur={() => setDoc((d) => d.title === titleBeforeEditRef.current ? d : ({ ...d, revision: d.revision + 1, metadata: { ...d.metadata, updatedAt: new Date().toISOString() } }))} aria-label="Document title" /><div className="saved-state"><Cloud size={13} /><Check size={12} /> {saveLabel}</div></div>
-      <div className="top-actions"><button className="icon-button" title="Undo" disabled={!past.length} onClick={undo}><Undo2 size={17} /></button><button className="icon-button" title="Redo" disabled={!future.length} onClick={redo}><Redo2 size={17} /></button><span className="top-divider" /><button className="quiet-button" onClick={() => { setPresentIndex(doc.pages.findIndex((p) => p.id === page.id)); setPresenting(true); }}><Eye size={15} /> Preview</button><button className="quiet-button" onClick={() => setReview({ key: Date.now() })}><Check size={15} /> Review changes</button><button className="quiet-button" onClick={openJson}><Braces size={15} /> JSON</button><button className="export-button" onClick={exportJson}><Share2 size={15} /> Export JSON <ChevronDown size={14} /></button><button className="present-button" onClick={() => { setPresentIndex(doc.pages.findIndex((p) => p.id === page.id)); setPresenting(true); }}><Play size={15} fill="currentColor" /> Present</button><div className="avatar" aria-label="PaperDOM workspace">PD</div></div>
+      <div className="top-actions"><button className="library-open-button" onClick={()=>setLibraryOpen(true)}><Puzzle size={16}/> Library</button><button className="icon-button" title="Undo" disabled={!past.length} onClick={undo}><Undo2 size={17} /></button><button className="icon-button" title="Redo" disabled={!future.length} onClick={redo}><Redo2 size={17} /></button><span className="top-divider" /><button className="quiet-button" onClick={() => { setPresentIndex(doc.pages.findIndex((p) => p.id === page.id)); setPresenting(true); }}><Eye size={15} /> Preview</button><button className="quiet-button" onClick={() => setReview({ key: Date.now() })}><Check size={15} /> Review changes</button><button className="quiet-button" onClick={openJson}><Braces size={15} /> JSON</button><button className="export-button" onClick={exportJson}><Share2 size={15} /> Export JSON <ChevronDown size={14} /></button><button className="present-button" onClick={() => { setPresentIndex(doc.pages.findIndex((p) => p.id === page.id)); setPresenting(true); }}><Play size={15} fill="currentColor" /> Present</button><div className="avatar" aria-label="PaperDOM workspace">PD</div></div>
     </header>
     <div className="editor-main">
       <aside className="page-rail">
         <div className="rail-heading"><span>Pages</span><button className="small-icon-button" onClick={addPage} aria-label="Add page"><Plus size={16} /></button></div>
         <div className="page-list">{doc.pages.map((p, i) => <div key={p.id} className={`page-item ${p.id === page.id ? "active" : ""}`} draggable onDragStart={() => setPageDragId(p.id)} onDragOver={(e) => e.preventDefault()} onDrop={() => reorderPage(p.id)} onClick={() => { setPageId(p.id); setSelection([]); }}>
-          <div className="page-number"><GripVertical size={13} />{i + 1}</div><MiniPage page={p} /><div className="page-caption"><span>{p.name}</span>{p.id === page.id && <span className="page-actions"><button onClick={(e) => { e.stopPropagation(); duplicatePage(p.id); }} title="Duplicate"><Copy size={13} /></button><button onClick={(e) => { e.stopPropagation(); deletePage(p.id); }} title="Delete"><Trash2 size={13} /></button></span>}</div>
+          <div className="page-number"><GripVertical size={13} />{i + 1}</div><MiniPage page={p} document={doc} /><div className="page-caption"><span>{p.name}</span>{p.id === page.id && <span className="page-actions"><button onClick={(e) => { e.stopPropagation(); duplicatePage(p.id); }} title="Duplicate"><Copy size={13} /></button><button onClick={(e) => { e.stopPropagation(); deletePage(p.id); }} title="Delete"><Trash2 size={13} /></button></span>}</div>
         </div>)}</div><button className="add-page-button" onClick={addPage}><Plus size={15} /> Add page</button>
       </aside>
       <aside className="tool-rail" aria-label="Tools">{toolGroups.map((group, gi) => <div className="tool-group" key={gi}>{group.map(({ id, label, icon: Icon }) => <button key={id} className={`tool-button ${tool === id ? "active" : ""}`} onClick={() => id === "image" ? imageInputRef.current?.click() : setTool(id)} title={label}><Icon size={19} strokeWidth={1.8} /><span>{label}</span></button>)}</div>)}<div className="tool-footer"><Lock size={15} /><span>Safe mode</span></div></aside>
@@ -864,6 +890,7 @@ export default function Home() {
       </section>
       <aside className="inspector">
         <div className="inspector-heading"><div><span className="eyebrow">Inspector</span><strong>{selectedOne ? selectedOne.name : selected.length > 1 ? `${selected.length} objects` : "Page"}</strong></div><button className="small-icon-button"><ChevronDown size={15} /></button></div>
+        {selectedOne?.component && <section className="inspector-section component-properties"><div className="section-title">Component properties</div><p className="component-link">Linked · {effectiveLibrary(doc).components.find(c=>c.id===selectedOne.component?.definitionId)?.name}</p>{Object.entries(effectiveLibrary(doc).components.find(c=>c.id===selectedOne.component?.definitionId)?.properties??{}).map(([key,property])=><label className="full-field" key={key}><span>{property.label}</span><textarea aria-label={`Component ${property.label}`} value={selectedOne.component!.props[key]??property.default} onChange={e=>getAgentAPI().updateComponentProps(selectedOne.id,{[key]:e.target.value})}/></label>)}<label className="color-field"><span>Instance accent</span><input aria-label="Instance accent" type="color" value={Object.values(selectedOne.component.overrides??{}).map(v=>v.color??v.fill).find(Boolean)??doc.theme?.accent??defaultTheme.accent} onChange={e=>{const definition=effectiveLibrary(doc).components.find(c=>c.id===selectedOne.component?.definitionId)!;const overrides=structuredClone(selectedOne.component!.overrides??{});for(const t of definition.tokens.filter(t=>t.token==='accent')) overrides[t.elementId]={...overrides[t.elementId],[t.field]:e.target.value};getAgentAPI().transaction({operations:[{op:'patchElement',elementId:selectedOne.id,patch:{component:{...selectedOne.component!,overrides}}}]});}}/></label><button className="edit-text-button" onClick={()=>getAgentAPI().transaction({operations:[{op:'patchElement',elementId:selectedOne.id,patch:{component:{...selectedOne.component!,overrides:{}}}}]})}>Reset style overrides</button></section>}
         {selectedOne ? <>
           <section className="inspector-section"><div className="section-title">Position & size</div><div className="field-grid"><Field label="X" value={selectedOne.frame.x} onChange={(x) => patchFrame(selectedOne.id, { x })} /><Field label="Y" value={selectedOne.frame.y} onChange={(y) => patchFrame(selectedOne.id, { y })} /><Field label="W" value={selectedOne.frame.w} min={1} onChange={(w) => patchFrame(selectedOne.id, { w })} /><Field label="H" value={selectedOne.frame.h} min={1} onChange={(h) => patchFrame(selectedOne.id, { h })} /></div><div className="field-row"><Field label="°" value={selectedOne.frame.rotation} onChange={(rotation) => patchFrame(selectedOne.id, { rotation })} /><button className="lock-ratio"><Lock size={14} /></button></div></section>
           <section className="inspector-section"><div className="section-title">Arrange</div><div className="arrange-grid"><button onClick={() => patchElement(selectedOne.id, { z: Math.max(...page.elements.map((e) => e.z)) + 1 })}><BringToFront size={15} /> Front</button><button onClick={() => patchElement(selectedOne.id, { z: Math.min(...page.elements.map((e) => e.z)) - 1 })}><SendToBack size={15} /> Back</button></div></section>
@@ -904,8 +931,15 @@ export default function Home() {
     <input ref={imageInputRef} className="hidden-input" type="file" accept="image/png,image/jpeg,image/webp,image/gif" onChange={(e) => { insertImageFile(e.target.files?.[0]); e.currentTarget.value = ""; }} />
     <input ref={importInputRef} className="hidden-input" type="file" accept="application/json,.json" onChange={(e) => { void importJsonFile(e.target.files?.[0]); e.currentTarget.value = ""; }} />
 
+    {libraryOpen && <LibraryPanel document={doc} selectedCount={selected.length} onClose={()=>setLibraryOpen(false)}
+      renderPage={(page,document)=><StaticPage page={page} document={document}/>}
+      onInsert={id=>{const result=getAgentAPI().insertComponent(id);requireSuccess(result);if('elementId' in result)setSelection([result.elementId]);setLibraryOpen(false);}}
+      onTemplate={id=>{const result=getAgentAPI().createPageFromTemplate(id);requireSuccess(result);if('pageId' in result)setPageId(result.pageId);setSelection([]);setLibraryOpen(false);}}
+      onExample={addExample} onImport={importLibrary} onSaveSelection={saveSelection}
+      onSavePage={name=>{const library=effectiveLibrary(documentRef.current);installLibrary({...library,templates:[...library.templates,{id:uid('template'),name,description:'Saved from your page',page:structuredClone(page)}]});}}
+      onTheme={name=>requireSuccess(getAgentAPI().transaction({operations:[{op:'setTheme',theme:themes[name]}]}))}/>}
     {review && <AgentReview key={review.key} document={doc} pageId={page.id} initialPreview={review.preview}
-      onClose={() => setReview(null)} renderPage={(page) => <StaticPage page={page} />}
+      onClose={() => setReview(null)} renderPage={(page,document) => <StaticPage page={page} document={document} />}
       onApply={(preview) => {
         if (!isPreviewCurrent(documentRef.current, preview)) return { ok: false, message: "The document changed. Preview the proposal again." };
         return getAgentAPI().transaction({ ...preview.payload, operations: preview.payload.operations.map((operation) =>
@@ -925,7 +959,7 @@ export default function Home() {
 
     {presenting && presentPage && <div className="present-overlay">
       <div className="present-top"><div className="present-brand"><div className="brand-mark">P</div><div><strong>{doc.title}</strong><span>Read-only presentation</span></div></div><button className="present-close" onClick={() => setPresenting(false)}><X size={18} /> Exit presentation</button></div>
-      <div className="present-stage"><div className="present-frame" style={{ width: PAGE_W * presentScale, height: PAGE_H * presentScale }}><div style={{ transform: `scale(${presentScale})`, transformOrigin: "top left" }}><StaticPage page={presentPage} /></div></div></div>
+      <div className="present-stage"><div className="present-frame" style={{ width: PAGE_W * presentScale, height: PAGE_H * presentScale }}><div style={{ transform: `scale(${presentScale})`, transformOrigin: "top left" }}><StaticPage page={presentPage} document={doc} /></div></div></div>
       <div className="present-controls"><button disabled={presentIndex === 0} onClick={() => setPresentIndex((i) => Math.max(0, i - 1))}><ArrowLeft size={17} /></button><span><strong>{presentPage.name}</strong> · {presentIndex + 1} / {doc.pages.length}</span><button disabled={presentIndex === doc.pages.length - 1} onClick={() => setPresentIndex((i) => Math.min(doc.pages.length - 1, i + 1))}><ArrowRight size={17} /></button></div>
     </div>}
   </main>;

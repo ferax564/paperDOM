@@ -1,3 +1,5 @@
+import { effectiveLibrary } from './starter-library.ts';
+import { makeInstance, instantiateTemplate, type ComponentLibrary } from './component-library.ts';
 import {
   applyDocumentTransaction,
   type AgentTransactionPayload,
@@ -45,7 +47,7 @@ export function summarizeScene(document: PaperDOMDocument, pageId: string) {
   return structuredClone({ revision: document.revision,
     page: { id: page.id, name: page.name, size: [page.size.width, page.size.height] },
     elements: page.elements.filter((e) => !e.hidden && !["connector", "line"].includes(e.type)).map((e) => ({
-      id: e.id, type: e.type, name: e.name, bounds: [e.frame.x, e.frame.y, e.frame.w, e.frame.h], text: e.content?.text, props: e.type === "plugin" ? e.content : undefined,
+      id: e.id, type: e.type, name: e.name, bounds: [e.frame.x, e.frame.y, e.frame.w, e.frame.h], text: e.content?.text, props: e.type === "component" ? e.component?.props : e.type === "plugin" ? e.content : undefined,
     })),
     connections: page.elements.filter((e) => !e.hidden && e.type === "connector").map((e) => ({ id: e.id, from: e.from, to: e.to, kind: "arrow" })),
     plugins: document.plugins,
@@ -89,6 +91,9 @@ export function diffDocuments(before: PaperDOMDocument, after: PaperDOMDocument)
       }
     }
   }
+  if (!equalValues(before.library, after.library) || !equalValues(before.theme, after.theme)) {
+    for (const page of after.pages) changes.push({ pageId: page.id, action: "updated", fields: ["library/theme"] });
+  }
   return changes;
 }
 
@@ -127,9 +132,9 @@ export function isPreviewCurrent(document: PaperDOMDocument, preview: Transactio
 }
 
 export const agentCapabilities = () => ({
-  apiVersion: "0.2", documentVersions: ["0.1"],
-  operations: ["createElement", "patchElement", "deleteElements", "replaceText", "createPage", "patchPage", "deletePage", "reorderPages"],
-  features: ["outline", "query", "dry-run", "diff", "warnings", "attribution", "optimistic-concurrency"],
+  apiVersion: "0.3", documentVersions: ["0.1"],
+  operations: ["createElement", "patchElement", "deleteElements", "replaceText", "createPage", "patchPage", "deletePage", "reorderPages", "setLibrary", "setTheme"],
+  features: ["outline", "query", "dry-run", "diff", "warnings", "attribution", "optimistic-concurrency", "components", "templates", "themes"],
 });
 
 /** Adapters own persistence. A closure reads the latest document even between React renders. */
@@ -140,7 +145,39 @@ export function createAgentAPI(adapter: {
   isBusy?: () => boolean;
   propose?: (preview: TransactionPreview) => void;
 }) {
+  const transaction = (payload: unknown) => {
+      const current = adapter.getDocument();
+      if (adapter.isBusy?.()) return { ok: false as const, error: "invalid_transaction" as const, revision: current.revision, message: "Finish the active edit before applying an agent transaction." };
+      const result = applyDocumentTransaction(current, payload, adapter.getPageId());
+      if (!result.ok) return result;
+      const changes = diffDocuments(current, result.document);
+      adapter.commit(result.document);
+      return { ok: true as const, previousRevision: result.previousRevision, revision: result.revision,
+        changedElementIds: result.changedElementIds, changedPageIds: [...new Set(changes.map((change) => change.pageId))] };
+    };
+  const libraryOperations = (): AgentTransactionPayload['operations'] => adapter.getDocument().library ? [] : [{ op: 'setLibrary', library: effectiveLibrary(adapter.getDocument()) }];
   return {
+    listComponents: () => structuredClone(effectiveLibrary(adapter.getDocument()).components),
+    listTemplates: () => structuredClone(effectiveLibrary(adapter.getDocument()).templates),
+    installLibrary: (library: ComponentLibrary) => transaction({ operations: [{ op: 'setLibrary', library }] }),
+    insertComponent: (definitionId: string, options: { id?: string; pageId?: string; x?: number; y?: number; props?: Record<string,string> } = {}) => {
+      const definition = effectiveLibrary(adapter.getDocument()).components.find(c => c.id === definitionId);
+      if (!definition) return { ok: false as const, message: 'Component not found' };
+      const id = options.id ?? `component_${crypto.randomUUID()}`;
+      const result = transaction({ operations: [...libraryOperations(), { op: 'createElement', pageId: options.pageId, element: makeInstance(definition, id, { x: options.x ?? 100, y: options.y ?? 180 }, options.props) }] });
+      return { ...result, elementId: id };
+    },
+    updateComponentProps: (elementId: string, props: Record<string,string>, pageId = adapter.getPageId()) => {
+      const element = adapter.getDocument().pages.find(p => p.id === pageId)?.elements.find(e => e.id === elementId);
+      if (!element?.component) return { ok: false as const, message: 'Component instance not found' };
+      return transaction({ operations: [{ op: 'patchElement', pageId, elementId, patch: { component: { ...element.component, props: { ...element.component.props, ...props } } } }] });
+    },
+    createPageFromTemplate: (templateId: string, options: { id?: string } = {}) => {
+      const template = effectiveLibrary(adapter.getDocument()).templates.find(t => t.id === templateId);
+      if (!template) return { ok: false as const, message: 'Template not found' };
+      const id = options.id ?? `page_${crypto.randomUUID()}`;
+      return { ...transaction({ operations: [...libraryOperations(), { op: 'createPage', page: instantiateTemplate(template, id) }] }), pageId: id };
+    },
     capabilities: () => ({ ...agentCapabilities(), review: Boolean(adapter.propose) }),
     getDocument: () => structuredClone(adapter.getDocument()),
     getDocumentOutline: () => getDocumentOutline(adapter.getDocument()),
@@ -154,16 +191,7 @@ export function createAgentAPI(adapter: {
       if (preview.ok && adapter.propose) adapter.propose(structuredClone(preview));
       return preview;
     },
-    transaction: (payload: unknown) => {
-      const current = adapter.getDocument();
-      if (adapter.isBusy?.()) return { ok: false as const, error: "invalid_transaction" as const, revision: current.revision, message: "Finish the active edit before applying an agent transaction." };
-      const result = applyDocumentTransaction(current, payload, adapter.getPageId());
-      if (!result.ok) return result;
-      const changes = diffDocuments(current, result.document);
-      adapter.commit(result.document);
-      return { ok: true as const, previousRevision: result.previousRevision, revision: result.revision,
-        changedElementIds: result.changedElementIds, changedPageIds: [...new Set(changes.map((change) => change.pageId))] };
-    },
+    transaction,
   };
 }
 

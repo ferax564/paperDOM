@@ -1,0 +1,3328 @@
+{
+  "format": "paperdom-library",
+  "version": "1.0",
+  "name": "PaperDOM Essentials",
+  "components": [
+    {
+      "id": "paperdom.heading",
+      "version": "1.0.0",
+      "name": "Section heading",
+      "category": "Text",
+      "description": "Eyebrow, title, and supporting line.",
+      "size": {
+        "width": 1080,
+        "height": 150
+      },
+      "properties": {
+        "eyebrow": {
+          "label": "Eyebrow",
+          "default": "PRODUCT / 2026"
+        },
+        "title": {
+          "label": "Title",
+          "default": "A clear idea. Beautifully explained."
+        },
+        "subtitle": {
+          "label": "Subtitle",
+          "default": "Build your story with reusable pieces."
+        }
+      },
+      "elements": [
+        {
+          "id": "eyebrow",
+          "type": "text",
+          "name": "eyebrow",
+          "frame": {
+            "x": 0,
+            "y": 0,
+            "w": 1080,
+            "h": 24,
+            "rotation": 0
+          },
+          "z": 2,
+          "content": {
+            "text": "PRODUCT / 2026"
+          },
+          "style": {
+            "fill": "transparent",
+            "stroke": "transparent",
+            "strokeWidth": 0,
+            "radius": 0,
+            "opacity": 1,
+            "color": "#172033",
+            "fontSize": 14,
+            "fontWeight": 750,
+            "textAlign": "left",
+            "fontFamily": "Inter, ui-sans-serif, system-ui, sans-serif",
+            "fontStyle": "normal",
+            "underline": false,
+            "strike": false,
+            "lineHeight": 1.25,
+            "letterSpacing": 2,
+            "verticalAlign": "middle",
+            "padding": 0
+          }
+        },
+        {
+          "id": "title",
+          "type": "text",
+          "name": "title",
+          "frame": {
+            "x": 0,
+            "y": 38,
+            "w": 1080,
+            "h": 60,
+            "rotation": 0
+          },
+          "z": 2,
+          "content": {
+            "text": "A clear idea. Beautifully explained."
+          },
+          "style": {
+            "fill": "transparent",
+            "stroke": "transparent",
+            "strokeWidth": 0,
+            "radius": 0,
+            "opacity": 1,
+            "color": "#172033",
+            "fontSize": 46,
+            "fontWeight": 750,
+            "textAlign": "left",
+            "fontFamily": "Inter, ui-sans-serif, system-ui, sans-serif",
+            "fontStyle": "normal",
+            "underline": false,
+            "strike": false,
+            "lineHeight": 1.25,
+            "letterSpacing": 0,
+            "verticalAlign": "middle",
+            "padding": 0
+          }
+        },
+        {
+          "id": "subtitle",
+          "type": "text",
+          "name": "subtitle",
+          "frame": {
+            "x": 0,
+            "y": 112,
+            "w": 1080,
+            "h": 32,
+            "rotation": 0
+          },
+          "z": 2,
+          "content": {
+            "text": "Build your story with reusable pieces."
+          },
+          "style": {
+            "fill": "transparent",
+            "stroke": "transparent",
+            "strokeWidth": 0,
+            "radius": 0,
+            "opacity": 1,
+            "color": "#64748b",
+            "fontSize": 21,
+            "fontWeight": 500,
+            "textAlign": "left",
+            "fontFamily": "Inter, ui-sans-serif, system-ui, sans-serif",
+            "fontStyle": "normal",
+            "underline": false,
+            "strike": false,
+            "lineHeight": 1.25,
+            "letterSpacing": 0,
+            "verticalAlign": "middle",
+            "padding": 0
+          }
+        }
+      ],
+      "bindings": [
+        {
+          "elementId": "eyebrow",
+          "property": "eyebrow",
+          "field": "text"
+        },
+        {
+          "elementId": "title",
+          "property": "title",
+          "field": "text"
+        },
+        {
+          "elementId": "subtitle",
+          "property": "subtitle",
+          "field": "text"
+        }
+      ],
+      "tokens": [
+        {
+          "elementId": "eyebrow",
+          "field": "fontFamily",
+          "token": "fontFamily"
+        },
+        {
+          "elementId": "eyebrow",
+          "field": "color",
+          "token": "accent"
+        },
+        {
+          "elementId": "title",
+          "field": "fontFamily",
+          "token": "fontFamily"
+        },
+        {
+          "elementId": "title",
+          "field": "color",
+          "token": "ink"
+        },
+        {
+          "elementId": "subtitle",
+          "field": "fontFamily",
+          "token": "fontFamily"
+        },
+        {
+          "elementId": "subtitle",
+          "field": "color",
+          "token": "muted"
+        }
+      ]
+    },
+    {
+      "id": "paperdom.metric",
+      "version": "1.0.0",
+      "name": "Metric card",
+      "category": "Data",
+      "description": "A headline number with context and a trend.",
+      "size": {
+        "width": 320,
+        "height": 210
+      },
+      "properties": {
+        "label": {
+          "label": "Label",
+          "default": "Monthly active users"
+        },
+        "value": {
+          "label": "Value",
+          "default": "24.8k"
+        },
+        "trend": {
+          "label": "Trend",
+          "default": "↑ 18% this quarter"
+        }
+      },
+      "elements": [
+        {
+          "id": "surface",
+          "type": "shape",
+          "name": "surface",
+          "frame": {
+            "x": 0,
+            "y": 0,
+            "w": 320,
+            "h": 210,
+            "rotation": 0
+          },
+          "z": 1,
+          "content": {
+            "text": ""
+          },
+          "style": {
+            "fill": "#f4f3ff",
+            "stroke": "transparent",
+            "strokeWidth": 0,
+            "radius": 22,
+            "opacity": 1,
+            "color": "#172033",
+            "fontSize": 20,
+            "fontWeight": 500,
+            "textAlign": "left",
+            "fontFamily": "Inter, ui-sans-serif, system-ui, sans-serif",
+            "fontStyle": "normal",
+            "underline": false,
+            "strike": false,
+            "lineHeight": 1.25,
+            "letterSpacing": 0,
+            "verticalAlign": "middle",
+            "padding": 0
+          }
+        },
+        {
+          "id": "label",
+          "type": "text",
+          "name": "label",
+          "frame": {
+            "x": 24,
+            "y": 24,
+            "w": 272,
+            "h": 28,
+            "rotation": 0
+          },
+          "z": 2,
+          "content": {
+            "text": "Monthly active users"
+          },
+          "style": {
+            "fill": "transparent",
+            "stroke": "transparent",
+            "strokeWidth": 0,
+            "radius": 0,
+            "opacity": 1,
+            "color": "#64748b",
+            "fontSize": 17,
+            "fontWeight": 500,
+            "textAlign": "left",
+            "fontFamily": "Inter, ui-sans-serif, system-ui, sans-serif",
+            "fontStyle": "normal",
+            "underline": false,
+            "strike": false,
+            "lineHeight": 1.25,
+            "letterSpacing": 0,
+            "verticalAlign": "middle",
+            "padding": 0
+          }
+        },
+        {
+          "id": "value",
+          "type": "text",
+          "name": "value",
+          "frame": {
+            "x": 24,
+            "y": 68,
+            "w": 272,
+            "h": 68,
+            "rotation": 0
+          },
+          "z": 2,
+          "content": {
+            "text": "24.8k"
+          },
+          "style": {
+            "fill": "transparent",
+            "stroke": "transparent",
+            "strokeWidth": 0,
+            "radius": 0,
+            "opacity": 1,
+            "color": "#172033",
+            "fontSize": 52,
+            "fontWeight": 750,
+            "textAlign": "left",
+            "fontFamily": "Inter, ui-sans-serif, system-ui, sans-serif",
+            "fontStyle": "normal",
+            "underline": false,
+            "strike": false,
+            "lineHeight": 1.25,
+            "letterSpacing": 0,
+            "verticalAlign": "middle",
+            "padding": 0
+          }
+        },
+        {
+          "id": "trend",
+          "type": "text",
+          "name": "trend",
+          "frame": {
+            "x": 24,
+            "y": 153,
+            "w": 272,
+            "h": 30,
+            "rotation": 0
+          },
+          "z": 2,
+          "content": {
+            "text": "↑ 18% this quarter"
+          },
+          "style": {
+            "fill": "transparent",
+            "stroke": "transparent",
+            "strokeWidth": 0,
+            "radius": 0,
+            "opacity": 1,
+            "color": "#172033",
+            "fontSize": 17,
+            "fontWeight": 650,
+            "textAlign": "left",
+            "fontFamily": "Inter, ui-sans-serif, system-ui, sans-serif",
+            "fontStyle": "normal",
+            "underline": false,
+            "strike": false,
+            "lineHeight": 1.25,
+            "letterSpacing": 0,
+            "verticalAlign": "middle",
+            "padding": 0
+          }
+        }
+      ],
+      "bindings": [
+        {
+          "elementId": "label",
+          "property": "label",
+          "field": "text"
+        },
+        {
+          "elementId": "value",
+          "property": "value",
+          "field": "text"
+        },
+        {
+          "elementId": "trend",
+          "property": "trend",
+          "field": "text"
+        }
+      ],
+      "tokens": [
+        {
+          "elementId": "surface",
+          "field": "fontFamily",
+          "token": "fontFamily"
+        },
+        {
+          "elementId": "surface",
+          "field": "color",
+          "token": "ink"
+        },
+        {
+          "elementId": "surface",
+          "field": "fill",
+          "token": "surface"
+        },
+        {
+          "elementId": "label",
+          "field": "fontFamily",
+          "token": "fontFamily"
+        },
+        {
+          "elementId": "label",
+          "field": "color",
+          "token": "muted"
+        },
+        {
+          "elementId": "value",
+          "field": "fontFamily",
+          "token": "fontFamily"
+        },
+        {
+          "elementId": "value",
+          "field": "color",
+          "token": "ink"
+        },
+        {
+          "elementId": "trend",
+          "field": "fontFamily",
+          "token": "fontFamily"
+        },
+        {
+          "elementId": "trend",
+          "field": "color",
+          "token": "accent"
+        }
+      ]
+    },
+    {
+      "id": "paperdom.quote",
+      "version": "1.0.0",
+      "name": "Quote",
+      "category": "Story",
+      "description": "An editorial quote with speaker and role.",
+      "size": {
+        "width": 740,
+        "height": 260
+      },
+      "properties": {
+        "quote": {
+          "label": "Quote",
+          "default": "“The best tools make room for your ideas.”"
+        },
+        "author": {
+          "label": "Author",
+          "default": "Alex Morgan"
+        },
+        "role": {
+          "label": "Role",
+          "default": "Product designer"
+        }
+      },
+      "elements": [
+        {
+          "id": "surface",
+          "type": "shape",
+          "name": "surface",
+          "frame": {
+            "x": 0,
+            "y": 0,
+            "w": 740,
+            "h": 260,
+            "rotation": 0
+          },
+          "z": 1,
+          "content": {
+            "text": ""
+          },
+          "style": {
+            "fill": "#f4f3ff",
+            "stroke": "transparent",
+            "strokeWidth": 0,
+            "radius": 22,
+            "opacity": 1,
+            "color": "#172033",
+            "fontSize": 20,
+            "fontWeight": 500,
+            "textAlign": "left",
+            "fontFamily": "Inter, ui-sans-serif, system-ui, sans-serif",
+            "fontStyle": "normal",
+            "underline": false,
+            "strike": false,
+            "lineHeight": 1.25,
+            "letterSpacing": 0,
+            "verticalAlign": "middle",
+            "padding": 0
+          }
+        },
+        {
+          "id": "quote",
+          "type": "text",
+          "name": "quote",
+          "frame": {
+            "x": 32,
+            "y": 30,
+            "w": 676,
+            "h": 136,
+            "rotation": 0
+          },
+          "z": 2,
+          "content": {
+            "text": "“The best tools make room for your ideas.”"
+          },
+          "style": {
+            "fill": "transparent",
+            "stroke": "transparent",
+            "strokeWidth": 0,
+            "radius": 0,
+            "opacity": 1,
+            "color": "#172033",
+            "fontSize": 32,
+            "fontWeight": 650,
+            "textAlign": "left",
+            "fontFamily": "Inter, ui-sans-serif, system-ui, sans-serif",
+            "fontStyle": "normal",
+            "underline": false,
+            "strike": false,
+            "lineHeight": 1.25,
+            "letterSpacing": 0,
+            "verticalAlign": "middle",
+            "padding": 0
+          }
+        },
+        {
+          "id": "author",
+          "type": "text",
+          "name": "author",
+          "frame": {
+            "x": 32,
+            "y": 188,
+            "w": 676,
+            "h": 26,
+            "rotation": 0
+          },
+          "z": 2,
+          "content": {
+            "text": "Alex Morgan"
+          },
+          "style": {
+            "fill": "transparent",
+            "stroke": "transparent",
+            "strokeWidth": 0,
+            "radius": 0,
+            "opacity": 1,
+            "color": "#172033",
+            "fontSize": 18,
+            "fontWeight": 700,
+            "textAlign": "left",
+            "fontFamily": "Inter, ui-sans-serif, system-ui, sans-serif",
+            "fontStyle": "normal",
+            "underline": false,
+            "strike": false,
+            "lineHeight": 1.25,
+            "letterSpacing": 0,
+            "verticalAlign": "middle",
+            "padding": 0
+          }
+        },
+        {
+          "id": "role",
+          "type": "text",
+          "name": "role",
+          "frame": {
+            "x": 32,
+            "y": 219,
+            "w": 676,
+            "h": 24,
+            "rotation": 0
+          },
+          "z": 2,
+          "content": {
+            "text": "Product designer"
+          },
+          "style": {
+            "fill": "transparent",
+            "stroke": "transparent",
+            "strokeWidth": 0,
+            "radius": 0,
+            "opacity": 1,
+            "color": "#64748b",
+            "fontSize": 15,
+            "fontWeight": 500,
+            "textAlign": "left",
+            "fontFamily": "Inter, ui-sans-serif, system-ui, sans-serif",
+            "fontStyle": "normal",
+            "underline": false,
+            "strike": false,
+            "lineHeight": 1.25,
+            "letterSpacing": 0,
+            "verticalAlign": "middle",
+            "padding": 0
+          }
+        }
+      ],
+      "bindings": [
+        {
+          "elementId": "quote",
+          "property": "quote",
+          "field": "text"
+        },
+        {
+          "elementId": "author",
+          "property": "author",
+          "field": "text"
+        },
+        {
+          "elementId": "role",
+          "property": "role",
+          "field": "text"
+        }
+      ],
+      "tokens": [
+        {
+          "elementId": "surface",
+          "field": "fontFamily",
+          "token": "fontFamily"
+        },
+        {
+          "elementId": "surface",
+          "field": "color",
+          "token": "ink"
+        },
+        {
+          "elementId": "surface",
+          "field": "fill",
+          "token": "surface"
+        },
+        {
+          "elementId": "quote",
+          "field": "fontFamily",
+          "token": "fontFamily"
+        },
+        {
+          "elementId": "quote",
+          "field": "color",
+          "token": "ink"
+        },
+        {
+          "elementId": "author",
+          "field": "fontFamily",
+          "token": "fontFamily"
+        },
+        {
+          "elementId": "author",
+          "field": "color",
+          "token": "accent"
+        },
+        {
+          "elementId": "role",
+          "field": "fontFamily",
+          "token": "fontFamily"
+        },
+        {
+          "elementId": "role",
+          "field": "color",
+          "token": "muted"
+        }
+      ]
+    },
+    {
+      "id": "paperdom.feature",
+      "version": "1.0.0",
+      "name": "Feature card",
+      "category": "Story",
+      "description": "A numbered feature with a short explanation.",
+      "size": {
+        "width": 330,
+        "height": 260
+      },
+      "properties": {
+        "number": {
+          "label": "Number",
+          "default": "01"
+        },
+        "title": {
+          "label": "Title",
+          "default": "Composable by design"
+        },
+        "body": {
+          "label": "Description",
+          "default": "Small pieces. Shared styles. Your own story."
+        }
+      },
+      "elements": [
+        {
+          "id": "surface",
+          "type": "shape",
+          "name": "surface",
+          "frame": {
+            "x": 0,
+            "y": 0,
+            "w": 330,
+            "h": 260,
+            "rotation": 0
+          },
+          "z": 1,
+          "content": {
+            "text": ""
+          },
+          "style": {
+            "fill": "#f4f3ff",
+            "stroke": "transparent",
+            "strokeWidth": 0,
+            "radius": 22,
+            "opacity": 1,
+            "color": "#172033",
+            "fontSize": 20,
+            "fontWeight": 500,
+            "textAlign": "left",
+            "fontFamily": "Inter, ui-sans-serif, system-ui, sans-serif",
+            "fontStyle": "normal",
+            "underline": false,
+            "strike": false,
+            "lineHeight": 1.25,
+            "letterSpacing": 0,
+            "verticalAlign": "middle",
+            "padding": 0
+          }
+        },
+        {
+          "id": "number",
+          "type": "text",
+          "name": "number",
+          "frame": {
+            "x": 24,
+            "y": 22,
+            "w": 282,
+            "h": 40,
+            "rotation": 0
+          },
+          "z": 2,
+          "content": {
+            "text": "01"
+          },
+          "style": {
+            "fill": "transparent",
+            "stroke": "transparent",
+            "strokeWidth": 0,
+            "radius": 0,
+            "opacity": 1,
+            "color": "#172033",
+            "fontSize": 24,
+            "fontWeight": 750,
+            "textAlign": "left",
+            "fontFamily": "Inter, ui-sans-serif, system-ui, sans-serif",
+            "fontStyle": "normal",
+            "underline": false,
+            "strike": false,
+            "lineHeight": 1.25,
+            "letterSpacing": 0,
+            "verticalAlign": "middle",
+            "padding": 0
+          }
+        },
+        {
+          "id": "title",
+          "type": "text",
+          "name": "title",
+          "frame": {
+            "x": 24,
+            "y": 80,
+            "w": 282,
+            "h": 70,
+            "rotation": 0
+          },
+          "z": 2,
+          "content": {
+            "text": "Composable by design"
+          },
+          "style": {
+            "fill": "transparent",
+            "stroke": "transparent",
+            "strokeWidth": 0,
+            "radius": 0,
+            "opacity": 1,
+            "color": "#172033",
+            "fontSize": 27,
+            "fontWeight": 700,
+            "textAlign": "left",
+            "fontFamily": "Inter, ui-sans-serif, system-ui, sans-serif",
+            "fontStyle": "normal",
+            "underline": false,
+            "strike": false,
+            "lineHeight": 1.25,
+            "letterSpacing": 0,
+            "verticalAlign": "middle",
+            "padding": 0
+          }
+        },
+        {
+          "id": "body",
+          "type": "text",
+          "name": "body",
+          "frame": {
+            "x": 24,
+            "y": 170,
+            "w": 282,
+            "h": 60,
+            "rotation": 0
+          },
+          "z": 2,
+          "content": {
+            "text": "Small pieces. Shared styles. Your own story."
+          },
+          "style": {
+            "fill": "transparent",
+            "stroke": "transparent",
+            "strokeWidth": 0,
+            "radius": 0,
+            "opacity": 1,
+            "color": "#64748b",
+            "fontSize": 18,
+            "fontWeight": 500,
+            "textAlign": "left",
+            "fontFamily": "Inter, ui-sans-serif, system-ui, sans-serif",
+            "fontStyle": "normal",
+            "underline": false,
+            "strike": false,
+            "lineHeight": 1.25,
+            "letterSpacing": 0,
+            "verticalAlign": "middle",
+            "padding": 0
+          }
+        }
+      ],
+      "bindings": [
+        {
+          "elementId": "number",
+          "property": "number",
+          "field": "text"
+        },
+        {
+          "elementId": "title",
+          "property": "title",
+          "field": "text"
+        },
+        {
+          "elementId": "body",
+          "property": "body",
+          "field": "text"
+        }
+      ],
+      "tokens": [
+        {
+          "elementId": "surface",
+          "field": "fontFamily",
+          "token": "fontFamily"
+        },
+        {
+          "elementId": "surface",
+          "field": "color",
+          "token": "ink"
+        },
+        {
+          "elementId": "surface",
+          "field": "fill",
+          "token": "surface"
+        },
+        {
+          "elementId": "number",
+          "field": "fontFamily",
+          "token": "fontFamily"
+        },
+        {
+          "elementId": "number",
+          "field": "color",
+          "token": "accent"
+        },
+        {
+          "elementId": "title",
+          "field": "fontFamily",
+          "token": "fontFamily"
+        },
+        {
+          "elementId": "title",
+          "field": "color",
+          "token": "ink"
+        },
+        {
+          "elementId": "body",
+          "field": "fontFamily",
+          "token": "fontFamily"
+        },
+        {
+          "elementId": "body",
+          "field": "color",
+          "token": "muted"
+        }
+      ]
+    },
+    {
+      "id": "paperdom.callout",
+      "version": "1.0.0",
+      "name": "Callout",
+      "category": "Text",
+      "description": "Highlight the one thing people should remember.",
+      "size": {
+        "width": 1060,
+        "height": 110
+      },
+      "properties": {
+        "title": {
+          "label": "Title",
+          "default": "The takeaway"
+        },
+        "body": {
+          "label": "Message",
+          "default": "A single source of truth for every presentation."
+        }
+      },
+      "elements": [
+        {
+          "id": "surface",
+          "type": "shape",
+          "name": "surface",
+          "frame": {
+            "x": 0,
+            "y": 0,
+            "w": 1060,
+            "h": 110,
+            "rotation": 0
+          },
+          "z": 1,
+          "content": {
+            "text": ""
+          },
+          "style": {
+            "fill": "#f4f3ff",
+            "stroke": "transparent",
+            "strokeWidth": 0,
+            "radius": 22,
+            "opacity": 1,
+            "color": "#172033",
+            "fontSize": 20,
+            "fontWeight": 500,
+            "textAlign": "left",
+            "fontFamily": "Inter, ui-sans-serif, system-ui, sans-serif",
+            "fontStyle": "normal",
+            "underline": false,
+            "strike": false,
+            "lineHeight": 1.25,
+            "letterSpacing": 0,
+            "verticalAlign": "middle",
+            "padding": 0
+          }
+        },
+        {
+          "id": "accent",
+          "type": "shape",
+          "name": "accent",
+          "frame": {
+            "x": 0,
+            "y": 0,
+            "w": 6,
+            "h": 110,
+            "rotation": 0
+          },
+          "z": 1,
+          "content": {
+            "text": ""
+          },
+          "style": {
+            "fill": "#6d5dfc",
+            "stroke": "transparent",
+            "strokeWidth": 0,
+            "radius": 3,
+            "opacity": 1,
+            "color": "#172033",
+            "fontSize": 20,
+            "fontWeight": 500,
+            "textAlign": "left",
+            "fontFamily": "Inter, ui-sans-serif, system-ui, sans-serif",
+            "fontStyle": "normal",
+            "underline": false,
+            "strike": false,
+            "lineHeight": 1.25,
+            "letterSpacing": 0,
+            "verticalAlign": "middle",
+            "padding": 0
+          }
+        },
+        {
+          "id": "title",
+          "type": "text",
+          "name": "title",
+          "frame": {
+            "x": 28,
+            "y": 20,
+            "w": 1000,
+            "h": 30,
+            "rotation": 0
+          },
+          "z": 2,
+          "content": {
+            "text": "The takeaway"
+          },
+          "style": {
+            "fill": "transparent",
+            "stroke": "transparent",
+            "strokeWidth": 0,
+            "radius": 0,
+            "opacity": 1,
+            "color": "#172033",
+            "fontSize": 22,
+            "fontWeight": 750,
+            "textAlign": "left",
+            "fontFamily": "Inter, ui-sans-serif, system-ui, sans-serif",
+            "fontStyle": "normal",
+            "underline": false,
+            "strike": false,
+            "lineHeight": 1.25,
+            "letterSpacing": 0,
+            "verticalAlign": "middle",
+            "padding": 0
+          }
+        },
+        {
+          "id": "body",
+          "type": "text",
+          "name": "body",
+          "frame": {
+            "x": 28,
+            "y": 60,
+            "w": 1000,
+            "h": 30,
+            "rotation": 0
+          },
+          "z": 2,
+          "content": {
+            "text": "A single source of truth for every presentation."
+          },
+          "style": {
+            "fill": "transparent",
+            "stroke": "transparent",
+            "strokeWidth": 0,
+            "radius": 0,
+            "opacity": 1,
+            "color": "#64748b",
+            "fontSize": 19,
+            "fontWeight": 500,
+            "textAlign": "left",
+            "fontFamily": "Inter, ui-sans-serif, system-ui, sans-serif",
+            "fontStyle": "normal",
+            "underline": false,
+            "strike": false,
+            "lineHeight": 1.25,
+            "letterSpacing": 0,
+            "verticalAlign": "middle",
+            "padding": 0
+          }
+        }
+      ],
+      "bindings": [
+        {
+          "elementId": "title",
+          "property": "title",
+          "field": "text"
+        },
+        {
+          "elementId": "body",
+          "property": "body",
+          "field": "text"
+        }
+      ],
+      "tokens": [
+        {
+          "elementId": "surface",
+          "field": "fontFamily",
+          "token": "fontFamily"
+        },
+        {
+          "elementId": "surface",
+          "field": "color",
+          "token": "ink"
+        },
+        {
+          "elementId": "surface",
+          "field": "fill",
+          "token": "surface"
+        },
+        {
+          "elementId": "accent",
+          "field": "fontFamily",
+          "token": "fontFamily"
+        },
+        {
+          "elementId": "accent",
+          "field": "color",
+          "token": "ink"
+        },
+        {
+          "elementId": "accent",
+          "field": "fill",
+          "token": "accent"
+        },
+        {
+          "elementId": "title",
+          "field": "fontFamily",
+          "token": "fontFamily"
+        },
+        {
+          "elementId": "title",
+          "field": "color",
+          "token": "accent"
+        },
+        {
+          "elementId": "body",
+          "field": "fontFamily",
+          "token": "fontFamily"
+        },
+        {
+          "elementId": "body",
+          "field": "color",
+          "token": "muted"
+        }
+      ]
+    },
+    {
+      "id": "paperdom.step",
+      "version": "1.0.0",
+      "name": "Process step",
+      "category": "Diagram",
+      "description": "One numbered step in a sequence.",
+      "size": {
+        "width": 310,
+        "height": 160
+      },
+      "properties": {
+        "number": {
+          "label": "Number",
+          "default": "1"
+        },
+        "title": {
+          "label": "Title",
+          "default": "Start with an idea"
+        },
+        "body": {
+          "label": "Description",
+          "default": "Choose a template and make it yours."
+        }
+      },
+      "elements": [
+        {
+          "id": "accent",
+          "type": "shape",
+          "name": "accent",
+          "frame": {
+            "x": 0,
+            "y": 0,
+            "w": 48,
+            "h": 48,
+            "rotation": 0
+          },
+          "z": 1,
+          "content": {
+            "text": ""
+          },
+          "style": {
+            "fill": "#6d5dfc",
+            "stroke": "transparent",
+            "strokeWidth": 0,
+            "radius": 16,
+            "opacity": 1,
+            "color": "#172033",
+            "fontSize": 20,
+            "fontWeight": 500,
+            "textAlign": "left",
+            "fontFamily": "Inter, ui-sans-serif, system-ui, sans-serif",
+            "fontStyle": "normal",
+            "underline": false,
+            "strike": false,
+            "lineHeight": 1.25,
+            "letterSpacing": 0,
+            "verticalAlign": "middle",
+            "padding": 0
+          }
+        },
+        {
+          "id": "number",
+          "type": "text",
+          "name": "number",
+          "frame": {
+            "x": 0,
+            "y": 0,
+            "w": 48,
+            "h": 48,
+            "rotation": 0
+          },
+          "z": 2,
+          "content": {
+            "text": "1"
+          },
+          "style": {
+            "fill": "transparent",
+            "stroke": "transparent",
+            "strokeWidth": 0,
+            "radius": 0,
+            "opacity": 1,
+            "color": "#ffffff",
+            "fontSize": 22,
+            "fontWeight": 750,
+            "textAlign": "center",
+            "fontFamily": "Inter, ui-sans-serif, system-ui, sans-serif",
+            "fontStyle": "normal",
+            "underline": false,
+            "strike": false,
+            "lineHeight": 1.25,
+            "letterSpacing": 0,
+            "verticalAlign": "middle",
+            "padding": 0
+          }
+        },
+        {
+          "id": "title",
+          "type": "text",
+          "name": "title",
+          "frame": {
+            "x": 0,
+            "y": 66,
+            "w": 310,
+            "h": 36,
+            "rotation": 0
+          },
+          "z": 2,
+          "content": {
+            "text": "Start with an idea"
+          },
+          "style": {
+            "fill": "transparent",
+            "stroke": "transparent",
+            "strokeWidth": 0,
+            "radius": 0,
+            "opacity": 1,
+            "color": "#172033",
+            "fontSize": 25,
+            "fontWeight": 700,
+            "textAlign": "left",
+            "fontFamily": "Inter, ui-sans-serif, system-ui, sans-serif",
+            "fontStyle": "normal",
+            "underline": false,
+            "strike": false,
+            "lineHeight": 1.25,
+            "letterSpacing": 0,
+            "verticalAlign": "middle",
+            "padding": 0
+          }
+        },
+        {
+          "id": "body",
+          "type": "text",
+          "name": "body",
+          "frame": {
+            "x": 0,
+            "y": 112,
+            "w": 310,
+            "h": 48,
+            "rotation": 0
+          },
+          "z": 2,
+          "content": {
+            "text": "Choose a template and make it yours."
+          },
+          "style": {
+            "fill": "transparent",
+            "stroke": "transparent",
+            "strokeWidth": 0,
+            "radius": 0,
+            "opacity": 1,
+            "color": "#64748b",
+            "fontSize": 18,
+            "fontWeight": 500,
+            "textAlign": "left",
+            "fontFamily": "Inter, ui-sans-serif, system-ui, sans-serif",
+            "fontStyle": "normal",
+            "underline": false,
+            "strike": false,
+            "lineHeight": 1.25,
+            "letterSpacing": 0,
+            "verticalAlign": "middle",
+            "padding": 0
+          }
+        }
+      ],
+      "bindings": [
+        {
+          "elementId": "number",
+          "property": "number",
+          "field": "text"
+        },
+        {
+          "elementId": "title",
+          "property": "title",
+          "field": "text"
+        },
+        {
+          "elementId": "body",
+          "property": "body",
+          "field": "text"
+        }
+      ],
+      "tokens": [
+        {
+          "elementId": "accent",
+          "field": "fontFamily",
+          "token": "fontFamily"
+        },
+        {
+          "elementId": "accent",
+          "field": "color",
+          "token": "ink"
+        },
+        {
+          "elementId": "accent",
+          "field": "fill",
+          "token": "accent"
+        },
+        {
+          "elementId": "number",
+          "field": "fontFamily",
+          "token": "fontFamily"
+        },
+        {
+          "elementId": "title",
+          "field": "fontFamily",
+          "token": "fontFamily"
+        },
+        {
+          "elementId": "title",
+          "field": "color",
+          "token": "ink"
+        },
+        {
+          "elementId": "body",
+          "field": "fontFamily",
+          "token": "fontFamily"
+        },
+        {
+          "elementId": "body",
+          "field": "color",
+          "token": "muted"
+        }
+      ]
+    },
+    {
+      "id": "paperdom.comparison",
+      "version": "1.0.0",
+      "name": "Comparison column",
+      "category": "Data",
+      "description": "A title and three parallel points.",
+      "size": {
+        "width": 490,
+        "height": 310
+      },
+      "properties": {
+        "title": {
+          "label": "Title",
+          "default": "With PaperDOM"
+        },
+        "first": {
+          "label": "First point",
+          "default": "01   Reusable components"
+        },
+        "second": {
+          "label": "Second point",
+          "default": "02   Consistent themes"
+        },
+        "third": {
+          "label": "Third point",
+          "default": "03   Open, portable files"
+        }
+      },
+      "elements": [
+        {
+          "id": "surface",
+          "type": "shape",
+          "name": "surface",
+          "frame": {
+            "x": 0,
+            "y": 0,
+            "w": 490,
+            "h": 310,
+            "rotation": 0
+          },
+          "z": 1,
+          "content": {
+            "text": ""
+          },
+          "style": {
+            "fill": "#f4f3ff",
+            "stroke": "transparent",
+            "strokeWidth": 0,
+            "radius": 22,
+            "opacity": 1,
+            "color": "#172033",
+            "fontSize": 20,
+            "fontWeight": 500,
+            "textAlign": "left",
+            "fontFamily": "Inter, ui-sans-serif, system-ui, sans-serif",
+            "fontStyle": "normal",
+            "underline": false,
+            "strike": false,
+            "lineHeight": 1.25,
+            "letterSpacing": 0,
+            "verticalAlign": "middle",
+            "padding": 0
+          }
+        },
+        {
+          "id": "title",
+          "type": "text",
+          "name": "title",
+          "frame": {
+            "x": 28,
+            "y": 24,
+            "w": 434,
+            "h": 42,
+            "rotation": 0
+          },
+          "z": 2,
+          "content": {
+            "text": "With PaperDOM"
+          },
+          "style": {
+            "fill": "transparent",
+            "stroke": "transparent",
+            "strokeWidth": 0,
+            "radius": 0,
+            "opacity": 1,
+            "color": "#172033",
+            "fontSize": 29,
+            "fontWeight": 750,
+            "textAlign": "left",
+            "fontFamily": "Inter, ui-sans-serif, system-ui, sans-serif",
+            "fontStyle": "normal",
+            "underline": false,
+            "strike": false,
+            "lineHeight": 1.25,
+            "letterSpacing": 0,
+            "verticalAlign": "middle",
+            "padding": 0
+          }
+        },
+        {
+          "id": "first",
+          "type": "text",
+          "name": "first",
+          "frame": {
+            "x": 28,
+            "y": 96,
+            "w": 434,
+            "h": 44,
+            "rotation": 0
+          },
+          "z": 2,
+          "content": {
+            "text": "01   Reusable components"
+          },
+          "style": {
+            "fill": "transparent",
+            "stroke": "transparent",
+            "strokeWidth": 0,
+            "radius": 0,
+            "opacity": 1,
+            "color": "#172033",
+            "fontSize": 21,
+            "fontWeight": 500,
+            "textAlign": "left",
+            "fontFamily": "Inter, ui-sans-serif, system-ui, sans-serif",
+            "fontStyle": "normal",
+            "underline": false,
+            "strike": false,
+            "lineHeight": 1.25,
+            "letterSpacing": 0,
+            "verticalAlign": "middle",
+            "padding": 0
+          }
+        },
+        {
+          "id": "second",
+          "type": "text",
+          "name": "second",
+          "frame": {
+            "x": 28,
+            "y": 160,
+            "w": 434,
+            "h": 44,
+            "rotation": 0
+          },
+          "z": 2,
+          "content": {
+            "text": "02   Consistent themes"
+          },
+          "style": {
+            "fill": "transparent",
+            "stroke": "transparent",
+            "strokeWidth": 0,
+            "radius": 0,
+            "opacity": 1,
+            "color": "#172033",
+            "fontSize": 21,
+            "fontWeight": 500,
+            "textAlign": "left",
+            "fontFamily": "Inter, ui-sans-serif, system-ui, sans-serif",
+            "fontStyle": "normal",
+            "underline": false,
+            "strike": false,
+            "lineHeight": 1.25,
+            "letterSpacing": 0,
+            "verticalAlign": "middle",
+            "padding": 0
+          }
+        },
+        {
+          "id": "third",
+          "type": "text",
+          "name": "third",
+          "frame": {
+            "x": 28,
+            "y": 224,
+            "w": 434,
+            "h": 44,
+            "rotation": 0
+          },
+          "z": 2,
+          "content": {
+            "text": "03   Open, portable files"
+          },
+          "style": {
+            "fill": "transparent",
+            "stroke": "transparent",
+            "strokeWidth": 0,
+            "radius": 0,
+            "opacity": 1,
+            "color": "#172033",
+            "fontSize": 21,
+            "fontWeight": 500,
+            "textAlign": "left",
+            "fontFamily": "Inter, ui-sans-serif, system-ui, sans-serif",
+            "fontStyle": "normal",
+            "underline": false,
+            "strike": false,
+            "lineHeight": 1.25,
+            "letterSpacing": 0,
+            "verticalAlign": "middle",
+            "padding": 0
+          }
+        }
+      ],
+      "bindings": [
+        {
+          "elementId": "title",
+          "property": "title",
+          "field": "text"
+        },
+        {
+          "elementId": "first",
+          "property": "first",
+          "field": "text"
+        },
+        {
+          "elementId": "second",
+          "property": "second",
+          "field": "text"
+        },
+        {
+          "elementId": "third",
+          "property": "third",
+          "field": "text"
+        }
+      ],
+      "tokens": [
+        {
+          "elementId": "surface",
+          "field": "fontFamily",
+          "token": "fontFamily"
+        },
+        {
+          "elementId": "surface",
+          "field": "color",
+          "token": "ink"
+        },
+        {
+          "elementId": "surface",
+          "field": "fill",
+          "token": "surface"
+        },
+        {
+          "elementId": "title",
+          "field": "fontFamily",
+          "token": "fontFamily"
+        },
+        {
+          "elementId": "title",
+          "field": "color",
+          "token": "accent"
+        },
+        {
+          "elementId": "first",
+          "field": "fontFamily",
+          "token": "fontFamily"
+        },
+        {
+          "elementId": "first",
+          "field": "color",
+          "token": "ink"
+        },
+        {
+          "elementId": "second",
+          "field": "fontFamily",
+          "token": "fontFamily"
+        },
+        {
+          "elementId": "second",
+          "field": "color",
+          "token": "ink"
+        },
+        {
+          "elementId": "third",
+          "field": "fontFamily",
+          "token": "fontFamily"
+        },
+        {
+          "elementId": "third",
+          "field": "color",
+          "token": "ink"
+        }
+      ]
+    },
+    {
+      "id": "paperdom.milestone",
+      "version": "1.0.0",
+      "name": "Roadmap milestone",
+      "category": "Diagram",
+      "description": "A date, deliverable, and status.",
+      "size": {
+        "width": 330,
+        "height": 180
+      },
+      "properties": {
+        "date": {
+          "label": "Date",
+          "default": "Q1 / 2026"
+        },
+        "title": {
+          "label": "Milestone",
+          "default": "Lay the foundation"
+        },
+        "status": {
+          "label": "Status",
+          "default": "Core editor · Complete"
+        }
+      },
+      "elements": [
+        {
+          "id": "date",
+          "type": "text",
+          "name": "date",
+          "frame": {
+            "x": 0,
+            "y": 0,
+            "w": 330,
+            "h": 28,
+            "rotation": 0
+          },
+          "z": 2,
+          "content": {
+            "text": "Q1 / 2026"
+          },
+          "style": {
+            "fill": "transparent",
+            "stroke": "transparent",
+            "strokeWidth": 0,
+            "radius": 0,
+            "opacity": 1,
+            "color": "#172033",
+            "fontSize": 15,
+            "fontWeight": 750,
+            "textAlign": "left",
+            "fontFamily": "Inter, ui-sans-serif, system-ui, sans-serif",
+            "fontStyle": "normal",
+            "underline": false,
+            "strike": false,
+            "lineHeight": 1.25,
+            "letterSpacing": 1,
+            "verticalAlign": "middle",
+            "padding": 0
+          }
+        },
+        {
+          "id": "title",
+          "type": "text",
+          "name": "title",
+          "frame": {
+            "x": 0,
+            "y": 50,
+            "w": 330,
+            "h": 68,
+            "rotation": 0
+          },
+          "z": 2,
+          "content": {
+            "text": "Lay the foundation"
+          },
+          "style": {
+            "fill": "transparent",
+            "stroke": "transparent",
+            "strokeWidth": 0,
+            "radius": 0,
+            "opacity": 1,
+            "color": "#172033",
+            "fontSize": 27,
+            "fontWeight": 750,
+            "textAlign": "left",
+            "fontFamily": "Inter, ui-sans-serif, system-ui, sans-serif",
+            "fontStyle": "normal",
+            "underline": false,
+            "strike": false,
+            "lineHeight": 1.25,
+            "letterSpacing": 0,
+            "verticalAlign": "middle",
+            "padding": 0
+          }
+        },
+        {
+          "id": "status",
+          "type": "text",
+          "name": "status",
+          "frame": {
+            "x": 0,
+            "y": 140,
+            "w": 330,
+            "h": 28,
+            "rotation": 0
+          },
+          "z": 2,
+          "content": {
+            "text": "Core editor · Complete"
+          },
+          "style": {
+            "fill": "transparent",
+            "stroke": "transparent",
+            "strokeWidth": 0,
+            "radius": 0,
+            "opacity": 1,
+            "color": "#64748b",
+            "fontSize": 17,
+            "fontWeight": 500,
+            "textAlign": "left",
+            "fontFamily": "Inter, ui-sans-serif, system-ui, sans-serif",
+            "fontStyle": "normal",
+            "underline": false,
+            "strike": false,
+            "lineHeight": 1.25,
+            "letterSpacing": 0,
+            "verticalAlign": "middle",
+            "padding": 0
+          }
+        }
+      ],
+      "bindings": [
+        {
+          "elementId": "date",
+          "property": "date",
+          "field": "text"
+        },
+        {
+          "elementId": "title",
+          "property": "title",
+          "field": "text"
+        },
+        {
+          "elementId": "status",
+          "property": "status",
+          "field": "text"
+        }
+      ],
+      "tokens": [
+        {
+          "elementId": "date",
+          "field": "fontFamily",
+          "token": "fontFamily"
+        },
+        {
+          "elementId": "date",
+          "field": "color",
+          "token": "accent"
+        },
+        {
+          "elementId": "title",
+          "field": "fontFamily",
+          "token": "fontFamily"
+        },
+        {
+          "elementId": "title",
+          "field": "color",
+          "token": "ink"
+        },
+        {
+          "elementId": "status",
+          "field": "fontFamily",
+          "token": "fontFamily"
+        },
+        {
+          "elementId": "status",
+          "field": "color",
+          "token": "muted"
+        }
+      ]
+    },
+    {
+      "id": "paperdom.badge",
+      "version": "1.0.0",
+      "name": "Badge",
+      "category": "Text",
+      "description": "A compact label for status or categories.",
+      "size": {
+        "width": 210,
+        "height": 48
+      },
+      "properties": {
+        "label": {
+          "label": "Label",
+          "default": "OPEN SOURCE"
+        }
+      },
+      "elements": [
+        {
+          "id": "surface",
+          "type": "shape",
+          "name": "surface",
+          "frame": {
+            "x": 0,
+            "y": 0,
+            "w": 210,
+            "h": 48,
+            "rotation": 0
+          },
+          "z": 1,
+          "content": {
+            "text": ""
+          },
+          "style": {
+            "fill": "#f4f3ff",
+            "stroke": "transparent",
+            "strokeWidth": 0,
+            "radius": 22,
+            "opacity": 1,
+            "color": "#172033",
+            "fontSize": 20,
+            "fontWeight": 500,
+            "textAlign": "left",
+            "fontFamily": "Inter, ui-sans-serif, system-ui, sans-serif",
+            "fontStyle": "normal",
+            "underline": false,
+            "strike": false,
+            "lineHeight": 1.25,
+            "letterSpacing": 0,
+            "verticalAlign": "middle",
+            "padding": 0
+          }
+        },
+        {
+          "id": "label",
+          "type": "text",
+          "name": "label",
+          "frame": {
+            "x": 12,
+            "y": 4,
+            "w": 186,
+            "h": 40,
+            "rotation": 0
+          },
+          "z": 2,
+          "content": {
+            "text": "OPEN SOURCE"
+          },
+          "style": {
+            "fill": "transparent",
+            "stroke": "transparent",
+            "strokeWidth": 0,
+            "radius": 0,
+            "opacity": 1,
+            "color": "#172033",
+            "fontSize": 14,
+            "fontWeight": 750,
+            "textAlign": "center",
+            "fontFamily": "Inter, ui-sans-serif, system-ui, sans-serif",
+            "fontStyle": "normal",
+            "underline": false,
+            "strike": false,
+            "lineHeight": 1.25,
+            "letterSpacing": 1,
+            "verticalAlign": "middle",
+            "padding": 0
+          }
+        }
+      ],
+      "bindings": [
+        {
+          "elementId": "label",
+          "property": "label",
+          "field": "text"
+        }
+      ],
+      "tokens": [
+        {
+          "elementId": "surface",
+          "field": "fontFamily",
+          "token": "fontFamily"
+        },
+        {
+          "elementId": "surface",
+          "field": "color",
+          "token": "ink"
+        },
+        {
+          "elementId": "surface",
+          "field": "fill",
+          "token": "surface"
+        },
+        {
+          "elementId": "label",
+          "field": "fontFamily",
+          "token": "fontFamily"
+        },
+        {
+          "elementId": "label",
+          "field": "color",
+          "token": "accent"
+        }
+      ]
+    },
+    {
+      "id": "paperdom.footer",
+      "version": "1.0.0",
+      "name": "Slide footer",
+      "category": "Text",
+      "description": "A quiet signature and page marker.",
+      "size": {
+        "width": 1080,
+        "height": 32
+      },
+      "properties": {
+        "label": {
+          "label": "Label",
+          "default": "PaperDOM / Built from small pieces"
+        },
+        "page": {
+          "label": "Page number",
+          "default": "01"
+        }
+      },
+      "elements": [
+        {
+          "id": "label",
+          "type": "text",
+          "name": "label",
+          "frame": {
+            "x": 0,
+            "y": 0,
+            "w": 950,
+            "h": 32,
+            "rotation": 0
+          },
+          "z": 2,
+          "content": {
+            "text": "PaperDOM / Built from small pieces"
+          },
+          "style": {
+            "fill": "transparent",
+            "stroke": "transparent",
+            "strokeWidth": 0,
+            "radius": 0,
+            "opacity": 1,
+            "color": "#64748b",
+            "fontSize": 13,
+            "fontWeight": 500,
+            "textAlign": "left",
+            "fontFamily": "Inter, ui-sans-serif, system-ui, sans-serif",
+            "fontStyle": "normal",
+            "underline": false,
+            "strike": false,
+            "lineHeight": 1.25,
+            "letterSpacing": 0,
+            "verticalAlign": "middle",
+            "padding": 0
+          }
+        },
+        {
+          "id": "page",
+          "type": "text",
+          "name": "page",
+          "frame": {
+            "x": 980,
+            "y": 0,
+            "w": 100,
+            "h": 32,
+            "rotation": 0
+          },
+          "z": 2,
+          "content": {
+            "text": "01"
+          },
+          "style": {
+            "fill": "transparent",
+            "stroke": "transparent",
+            "strokeWidth": 0,
+            "radius": 0,
+            "opacity": 1,
+            "color": "#64748b",
+            "fontSize": 13,
+            "fontWeight": 500,
+            "textAlign": "right",
+            "fontFamily": "Inter, ui-sans-serif, system-ui, sans-serif",
+            "fontStyle": "normal",
+            "underline": false,
+            "strike": false,
+            "lineHeight": 1.25,
+            "letterSpacing": 0,
+            "verticalAlign": "middle",
+            "padding": 0
+          }
+        }
+      ],
+      "bindings": [
+        {
+          "elementId": "label",
+          "property": "label",
+          "field": "text"
+        },
+        {
+          "elementId": "page",
+          "property": "page",
+          "field": "text"
+        }
+      ],
+      "tokens": [
+        {
+          "elementId": "label",
+          "field": "fontFamily",
+          "token": "fontFamily"
+        },
+        {
+          "elementId": "label",
+          "field": "color",
+          "token": "muted"
+        },
+        {
+          "elementId": "page",
+          "field": "fontFamily",
+          "token": "fontFamily"
+        },
+        {
+          "elementId": "page",
+          "field": "color",
+          "token": "muted"
+        }
+      ]
+    }
+  ],
+  "templates": [
+    {
+      "id": "paperdom.cover",
+      "name": "Title & introduction",
+      "description": "A confident opening with a clear promise.",
+      "page": {
+        "id": "cover",
+        "name": "Introduction",
+        "notes": "Introduce the idea and explain what your audience will learn.",
+        "size": {
+          "width": 1280,
+          "height": 720
+        },
+        "background": {
+          "color": "#ffffff"
+        },
+        "elements": [
+          {
+            "id": "badge",
+            "type": "component",
+            "name": "Badge",
+            "frame": {
+              "x": 100,
+              "y": 110,
+              "w": 210,
+              "h": 48,
+              "rotation": 0
+            },
+            "z": 10,
+            "style": {
+              "fill": "transparent",
+              "stroke": "transparent",
+              "strokeWidth": 0,
+              "radius": 0,
+              "opacity": 1,
+              "color": "#172033",
+              "fontSize": 20,
+              "fontWeight": 500,
+              "textAlign": "left",
+              "fontFamily": "Inter, ui-sans-serif, system-ui, sans-serif",
+              "fontStyle": "normal",
+              "underline": false,
+              "strike": false,
+              "lineHeight": 1.25,
+              "letterSpacing": 0,
+              "verticalAlign": "middle",
+              "padding": 0
+            },
+            "component": {
+              "definitionId": "paperdom.badge",
+              "props": {}
+            }
+          },
+          {
+            "id": "heading",
+            "type": "component",
+            "name": "Section heading",
+            "frame": {
+              "x": 100,
+              "y": 245,
+              "w": 1080,
+              "h": 150,
+              "rotation": 0
+            },
+            "z": 10,
+            "style": {
+              "fill": "transparent",
+              "stroke": "transparent",
+              "strokeWidth": 0,
+              "radius": 0,
+              "opacity": 1,
+              "color": "#172033",
+              "fontSize": 20,
+              "fontWeight": 500,
+              "textAlign": "left",
+              "fontFamily": "Inter, ui-sans-serif, system-ui, sans-serif",
+              "fontStyle": "normal",
+              "underline": false,
+              "strike": false,
+              "lineHeight": 1.25,
+              "letterSpacing": 0,
+              "verticalAlign": "middle",
+              "padding": 0
+            },
+            "component": {
+              "definitionId": "paperdom.heading",
+              "props": {
+                "eyebrow": "YOUR NEXT BIG IDEA",
+                "title": "Create once. Compose endlessly.",
+                "subtitle": "An open canvas for people and their agents."
+              }
+            }
+          },
+          {
+            "id": "footer",
+            "type": "component",
+            "name": "Slide footer",
+            "frame": {
+              "x": 100,
+              "y": 658,
+              "w": 1080,
+              "h": 32,
+              "rotation": 0
+            },
+            "z": 10,
+            "style": {
+              "fill": "transparent",
+              "stroke": "transparent",
+              "strokeWidth": 0,
+              "radius": 0,
+              "opacity": 1,
+              "color": "#172033",
+              "fontSize": 20,
+              "fontWeight": 500,
+              "textAlign": "left",
+              "fontFamily": "Inter, ui-sans-serif, system-ui, sans-serif",
+              "fontStyle": "normal",
+              "underline": false,
+              "strike": false,
+              "lineHeight": 1.25,
+              "letterSpacing": 0,
+              "verticalAlign": "middle",
+              "padding": 0
+            },
+            "component": {
+              "definitionId": "paperdom.footer",
+              "props": {
+                "page": "01"
+              }
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": "paperdom.metrics",
+      "name": "Key metrics",
+      "description": "Three numbers, one clear takeaway.",
+      "page": {
+        "id": "metrics",
+        "name": "Key metrics",
+        "notes": "These are illustrative numbers. Replace them with verified measurements.",
+        "size": {
+          "width": 1280,
+          "height": 720
+        },
+        "background": {
+          "color": "#ffffff"
+        },
+        "elements": [
+          {
+            "id": "heading",
+            "type": "component",
+            "name": "Section heading",
+            "frame": {
+              "x": 100,
+              "y": 60,
+              "w": 1080,
+              "h": 150,
+              "rotation": 0
+            },
+            "z": 10,
+            "style": {
+              "fill": "transparent",
+              "stroke": "transparent",
+              "strokeWidth": 0,
+              "radius": 0,
+              "opacity": 1,
+              "color": "#172033",
+              "fontSize": 20,
+              "fontWeight": 500,
+              "textAlign": "left",
+              "fontFamily": "Inter, ui-sans-serif, system-ui, sans-serif",
+              "fontStyle": "normal",
+              "underline": false,
+              "strike": false,
+              "lineHeight": 1.25,
+              "letterSpacing": 0,
+              "verticalAlign": "middle",
+              "padding": 0
+            },
+            "component": {
+              "definitionId": "paperdom.heading",
+              "props": {
+                "title": "Progress, in perspective.",
+                "subtitle": "A snapshot of what matters this quarter.",
+                "eyebrow": "PAPERDOM / COMPOSE"
+              }
+            }
+          },
+          {
+            "id": "metric1",
+            "type": "component",
+            "name": "Metric card",
+            "frame": {
+              "x": 100,
+              "y": 274,
+              "w": 320,
+              "h": 210,
+              "rotation": 0
+            },
+            "z": 10,
+            "style": {
+              "fill": "transparent",
+              "stroke": "transparent",
+              "strokeWidth": 0,
+              "radius": 0,
+              "opacity": 1,
+              "color": "#172033",
+              "fontSize": 20,
+              "fontWeight": 500,
+              "textAlign": "left",
+              "fontFamily": "Inter, ui-sans-serif, system-ui, sans-serif",
+              "fontStyle": "normal",
+              "underline": false,
+              "strike": false,
+              "lineHeight": 1.25,
+              "letterSpacing": 0,
+              "verticalAlign": "middle",
+              "padding": 0
+            },
+            "component": {
+              "definitionId": "paperdom.metric",
+              "props": {}
+            }
+          },
+          {
+            "id": "metric2",
+            "type": "component",
+            "name": "Metric card",
+            "frame": {
+              "x": 480,
+              "y": 274,
+              "w": 320,
+              "h": 210,
+              "rotation": 0
+            },
+            "z": 10,
+            "style": {
+              "fill": "transparent",
+              "stroke": "transparent",
+              "strokeWidth": 0,
+              "radius": 0,
+              "opacity": 1,
+              "color": "#172033",
+              "fontSize": 20,
+              "fontWeight": 500,
+              "textAlign": "left",
+              "fontFamily": "Inter, ui-sans-serif, system-ui, sans-serif",
+              "fontStyle": "normal",
+              "underline": false,
+              "strike": false,
+              "lineHeight": 1.25,
+              "letterSpacing": 0,
+              "verticalAlign": "middle",
+              "padding": 0
+            },
+            "component": {
+              "definitionId": "paperdom.metric",
+              "props": {
+                "label": "Customer satisfaction",
+                "value": "96%",
+                "trend": "↑ 4 points"
+              }
+            }
+          },
+          {
+            "id": "metric3",
+            "type": "component",
+            "name": "Metric card",
+            "frame": {
+              "x": 860,
+              "y": 274,
+              "w": 320,
+              "h": 210,
+              "rotation": 0
+            },
+            "z": 10,
+            "style": {
+              "fill": "transparent",
+              "stroke": "transparent",
+              "strokeWidth": 0,
+              "radius": 0,
+              "opacity": 1,
+              "color": "#172033",
+              "fontSize": 20,
+              "fontWeight": 500,
+              "textAlign": "left",
+              "fontFamily": "Inter, ui-sans-serif, system-ui, sans-serif",
+              "fontStyle": "normal",
+              "underline": false,
+              "strike": false,
+              "lineHeight": 1.25,
+              "letterSpacing": 0,
+              "verticalAlign": "middle",
+              "padding": 0
+            },
+            "component": {
+              "definitionId": "paperdom.metric",
+              "props": {
+                "label": "Time to first draft",
+                "value": "5 min",
+                "trend": "↓ 60% faster"
+              }
+            }
+          },
+          {
+            "id": "takeaway",
+            "type": "component",
+            "name": "Callout",
+            "frame": {
+              "x": 100,
+              "y": 530,
+              "w": 1080,
+              "h": 90,
+              "rotation": 0
+            },
+            "z": 10,
+            "style": {
+              "fill": "transparent",
+              "stroke": "transparent",
+              "strokeWidth": 0,
+              "radius": 0,
+              "opacity": 1,
+              "color": "#172033",
+              "fontSize": 20,
+              "fontWeight": 500,
+              "textAlign": "left",
+              "fontFamily": "Inter, ui-sans-serif, system-ui, sans-serif",
+              "fontStyle": "normal",
+              "underline": false,
+              "strike": false,
+              "lineHeight": 1.25,
+              "letterSpacing": 0,
+              "verticalAlign": "middle",
+              "padding": 0
+            },
+            "component": {
+              "definitionId": "paperdom.callout",
+              "props": {
+                "title": "Momentum is building",
+                "body": "Every improvement compounds when the whole team can reuse it."
+              }
+            }
+          },
+          {
+            "id": "footer",
+            "type": "component",
+            "name": "Slide footer",
+            "frame": {
+              "x": 100,
+              "y": 658,
+              "w": 1080,
+              "h": 32,
+              "rotation": 0
+            },
+            "z": 10,
+            "style": {
+              "fill": "transparent",
+              "stroke": "transparent",
+              "strokeWidth": 0,
+              "radius": 0,
+              "opacity": 1,
+              "color": "#172033",
+              "fontSize": 20,
+              "fontWeight": 500,
+              "textAlign": "left",
+              "fontFamily": "Inter, ui-sans-serif, system-ui, sans-serif",
+              "fontStyle": "normal",
+              "underline": false,
+              "strike": false,
+              "lineHeight": 1.25,
+              "letterSpacing": 0,
+              "verticalAlign": "middle",
+              "padding": 0
+            },
+            "component": {
+              "definitionId": "paperdom.footer",
+              "props": {
+                "page": "02"
+              }
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": "paperdom.features",
+      "name": "Three features",
+      "description": "Explain three parts of your offering.",
+      "page": {
+        "id": "features",
+        "name": "What makes it work",
+        "notes": "Give one concrete example for each feature.",
+        "size": {
+          "width": 1280,
+          "height": 720
+        },
+        "background": {
+          "color": "#ffffff"
+        },
+        "elements": [
+          {
+            "id": "heading",
+            "type": "component",
+            "name": "Section heading",
+            "frame": {
+              "x": 100,
+              "y": 60,
+              "w": 1080,
+              "h": 150,
+              "rotation": 0
+            },
+            "z": 10,
+            "style": {
+              "fill": "transparent",
+              "stroke": "transparent",
+              "strokeWidth": 0,
+              "radius": 0,
+              "opacity": 1,
+              "color": "#172033",
+              "fontSize": 20,
+              "fontWeight": 500,
+              "textAlign": "left",
+              "fontFamily": "Inter, ui-sans-serif, system-ui, sans-serif",
+              "fontStyle": "normal",
+              "underline": false,
+              "strike": false,
+              "lineHeight": 1.25,
+              "letterSpacing": 0,
+              "verticalAlign": "middle",
+              "padding": 0
+            },
+            "component": {
+              "definitionId": "paperdom.heading",
+              "props": {
+                "title": "Built to work together.",
+                "subtitle": "Everything you need to turn a thought into a story.",
+                "eyebrow": "PAPERDOM / COMPOSE"
+              }
+            }
+          },
+          {
+            "id": "feature1",
+            "type": "component",
+            "name": "Feature card",
+            "frame": {
+              "x": 100,
+              "y": 285,
+              "w": 330,
+              "h": 260,
+              "rotation": 0
+            },
+            "z": 10,
+            "style": {
+              "fill": "transparent",
+              "stroke": "transparent",
+              "strokeWidth": 0,
+              "radius": 0,
+              "opacity": 1,
+              "color": "#172033",
+              "fontSize": 20,
+              "fontWeight": 500,
+              "textAlign": "left",
+              "fontFamily": "Inter, ui-sans-serif, system-ui, sans-serif",
+              "fontStyle": "normal",
+              "underline": false,
+              "strike": false,
+              "lineHeight": 1.25,
+              "letterSpacing": 0,
+              "verticalAlign": "middle",
+              "padding": 0
+            },
+            "component": {
+              "definitionId": "paperdom.feature",
+              "props": {}
+            }
+          },
+          {
+            "id": "feature2",
+            "type": "component",
+            "name": "Feature card",
+            "frame": {
+              "x": 475,
+              "y": 285,
+              "w": 330,
+              "h": 260,
+              "rotation": 0
+            },
+            "z": 10,
+            "style": {
+              "fill": "transparent",
+              "stroke": "transparent",
+              "strokeWidth": 0,
+              "radius": 0,
+              "opacity": 1,
+              "color": "#172033",
+              "fontSize": 20,
+              "fontWeight": 500,
+              "textAlign": "left",
+              "fontFamily": "Inter, ui-sans-serif, system-ui, sans-serif",
+              "fontStyle": "normal",
+              "underline": false,
+              "strike": false,
+              "lineHeight": 1.25,
+              "letterSpacing": 0,
+              "verticalAlign": "middle",
+              "padding": 0
+            },
+            "component": {
+              "definitionId": "paperdom.feature",
+              "props": {
+                "number": "02",
+                "title": "Shared visual language",
+                "body": "Change a theme once. Keep every piece in sync."
+              }
+            }
+          },
+          {
+            "id": "feature3",
+            "type": "component",
+            "name": "Feature card",
+            "frame": {
+              "x": 850,
+              "y": 285,
+              "w": 330,
+              "h": 260,
+              "rotation": 0
+            },
+            "z": 10,
+            "style": {
+              "fill": "transparent",
+              "stroke": "transparent",
+              "strokeWidth": 0,
+              "radius": 0,
+              "opacity": 1,
+              "color": "#172033",
+              "fontSize": 20,
+              "fontWeight": 500,
+              "textAlign": "left",
+              "fontFamily": "Inter, ui-sans-serif, system-ui, sans-serif",
+              "fontStyle": "normal",
+              "underline": false,
+              "strike": false,
+              "lineHeight": 1.25,
+              "letterSpacing": 0,
+              "verticalAlign": "middle",
+              "padding": 0
+            },
+            "component": {
+              "definitionId": "paperdom.feature",
+              "props": {
+                "number": "03",
+                "title": "Open to everyone",
+                "body": "Portable JSON. MIT licensed. Yours to extend."
+              }
+            }
+          },
+          {
+            "id": "footer",
+            "type": "component",
+            "name": "Slide footer",
+            "frame": {
+              "x": 100,
+              "y": 658,
+              "w": 1080,
+              "h": 32,
+              "rotation": 0
+            },
+            "z": 10,
+            "style": {
+              "fill": "transparent",
+              "stroke": "transparent",
+              "strokeWidth": 0,
+              "radius": 0,
+              "opacity": 1,
+              "color": "#172033",
+              "fontSize": 20,
+              "fontWeight": 500,
+              "textAlign": "left",
+              "fontFamily": "Inter, ui-sans-serif, system-ui, sans-serif",
+              "fontStyle": "normal",
+              "underline": false,
+              "strike": false,
+              "lineHeight": 1.25,
+              "letterSpacing": 0,
+              "verticalAlign": "middle",
+              "padding": 0
+            },
+            "component": {
+              "definitionId": "paperdom.footer",
+              "props": {
+                "page": "03"
+              }
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": "paperdom.comparison",
+      "name": "Side-by-side comparison",
+      "description": "Compare two approaches using matching criteria.",
+      "page": {
+        "id": "comparison",
+        "name": "Compare approaches",
+        "notes": "Explain the tradeoffs fairly and identify when each approach is useful.",
+        "size": {
+          "width": 1280,
+          "height": 720
+        },
+        "background": {
+          "color": "#ffffff"
+        },
+        "elements": [
+          {
+            "id": "heading",
+            "type": "component",
+            "name": "Section heading",
+            "frame": {
+              "x": 100,
+              "y": 60,
+              "w": 1080,
+              "h": 150,
+              "rotation": 0
+            },
+            "z": 10,
+            "style": {
+              "fill": "transparent",
+              "stroke": "transparent",
+              "strokeWidth": 0,
+              "radius": 0,
+              "opacity": 1,
+              "color": "#172033",
+              "fontSize": 20,
+              "fontWeight": 500,
+              "textAlign": "left",
+              "fontFamily": "Inter, ui-sans-serif, system-ui, sans-serif",
+              "fontStyle": "normal",
+              "underline": false,
+              "strike": false,
+              "lineHeight": 1.25,
+              "letterSpacing": 0,
+              "verticalAlign": "middle",
+              "padding": 0
+            },
+            "component": {
+              "definitionId": "paperdom.heading",
+              "props": {
+                "title": "Make the difference visible.",
+                "subtitle": "Use the same criteria to help your audience decide.",
+                "eyebrow": "PAPERDOM / COMPOSE"
+              }
+            }
+          },
+          {
+            "id": "before",
+            "type": "component",
+            "name": "Comparison column",
+            "frame": {
+              "x": 100,
+              "y": 275,
+              "w": 490,
+              "h": 310,
+              "rotation": 0
+            },
+            "z": 10,
+            "style": {
+              "fill": "transparent",
+              "stroke": "transparent",
+              "strokeWidth": 0,
+              "radius": 0,
+              "opacity": 1,
+              "color": "#172033",
+              "fontSize": 20,
+              "fontWeight": 500,
+              "textAlign": "left",
+              "fontFamily": "Inter, ui-sans-serif, system-ui, sans-serif",
+              "fontStyle": "normal",
+              "underline": false,
+              "strike": false,
+              "lineHeight": 1.25,
+              "letterSpacing": 0,
+              "verticalAlign": "middle",
+              "padding": 0
+            },
+            "component": {
+              "definitionId": "paperdom.comparison",
+              "props": {
+                "title": "One-off slides",
+                "first": "01   Copy and paste",
+                "second": "02   Manual restyling",
+                "third": "03   Changes drift apart"
+              }
+            }
+          },
+          {
+            "id": "after",
+            "type": "component",
+            "name": "Comparison column",
+            "frame": {
+              "x": 690,
+              "y": 275,
+              "w": 490,
+              "h": 310,
+              "rotation": 0
+            },
+            "z": 10,
+            "style": {
+              "fill": "transparent",
+              "stroke": "transparent",
+              "strokeWidth": 0,
+              "radius": 0,
+              "opacity": 1,
+              "color": "#172033",
+              "fontSize": 20,
+              "fontWeight": 500,
+              "textAlign": "left",
+              "fontFamily": "Inter, ui-sans-serif, system-ui, sans-serif",
+              "fontStyle": "normal",
+              "underline": false,
+              "strike": false,
+              "lineHeight": 1.25,
+              "letterSpacing": 0,
+              "verticalAlign": "middle",
+              "padding": 0
+            },
+            "component": {
+              "definitionId": "paperdom.comparison",
+              "props": {}
+            }
+          },
+          {
+            "id": "footer",
+            "type": "component",
+            "name": "Slide footer",
+            "frame": {
+              "x": 100,
+              "y": 658,
+              "w": 1080,
+              "h": 32,
+              "rotation": 0
+            },
+            "z": 10,
+            "style": {
+              "fill": "transparent",
+              "stroke": "transparent",
+              "strokeWidth": 0,
+              "radius": 0,
+              "opacity": 1,
+              "color": "#172033",
+              "fontSize": 20,
+              "fontWeight": 500,
+              "textAlign": "left",
+              "fontFamily": "Inter, ui-sans-serif, system-ui, sans-serif",
+              "fontStyle": "normal",
+              "underline": false,
+              "strike": false,
+              "lineHeight": 1.25,
+              "letterSpacing": 0,
+              "verticalAlign": "middle",
+              "padding": 0
+            },
+            "component": {
+              "definitionId": "paperdom.footer",
+              "props": {
+                "page": "04"
+              }
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": "paperdom.process",
+      "name": "Three-step process",
+      "description": "Walk through an ordered workflow.",
+      "page": {
+        "id": "process",
+        "name": "How it works",
+        "notes": "Demonstrate each step using the editor.",
+        "size": {
+          "width": 1280,
+          "height": 720
+        },
+        "background": {
+          "color": "#ffffff"
+        },
+        "elements": [
+          {
+            "id": "heading",
+            "type": "component",
+            "name": "Section heading",
+            "frame": {
+              "x": 100,
+              "y": 60,
+              "w": 1080,
+              "h": 150,
+              "rotation": 0
+            },
+            "z": 10,
+            "style": {
+              "fill": "transparent",
+              "stroke": "transparent",
+              "strokeWidth": 0,
+              "radius": 0,
+              "opacity": 1,
+              "color": "#172033",
+              "fontSize": 20,
+              "fontWeight": 500,
+              "textAlign": "left",
+              "fontFamily": "Inter, ui-sans-serif, system-ui, sans-serif",
+              "fontStyle": "normal",
+              "underline": false,
+              "strike": false,
+              "lineHeight": 1.25,
+              "letterSpacing": 0,
+              "verticalAlign": "middle",
+              "padding": 0
+            },
+            "component": {
+              "definitionId": "paperdom.heading",
+              "props": {
+                "title": "From idea to shared story.",
+                "subtitle": "A small, repeatable workflow.",
+                "eyebrow": "PAPERDOM / COMPOSE"
+              }
+            }
+          },
+          {
+            "id": "step1",
+            "type": "component",
+            "name": "Process step",
+            "frame": {
+              "x": 100,
+              "y": 300,
+              "w": 310,
+              "h": 160,
+              "rotation": 0
+            },
+            "z": 10,
+            "style": {
+              "fill": "transparent",
+              "stroke": "transparent",
+              "strokeWidth": 0,
+              "radius": 0,
+              "opacity": 1,
+              "color": "#172033",
+              "fontSize": 20,
+              "fontWeight": 500,
+              "textAlign": "left",
+              "fontFamily": "Inter, ui-sans-serif, system-ui, sans-serif",
+              "fontStyle": "normal",
+              "underline": false,
+              "strike": false,
+              "lineHeight": 1.25,
+              "letterSpacing": 0,
+              "verticalAlign": "middle",
+              "padding": 0
+            },
+            "component": {
+              "definitionId": "paperdom.step",
+              "props": {}
+            }
+          },
+          {
+            "id": "step2",
+            "type": "component",
+            "name": "Process step",
+            "frame": {
+              "x": 485,
+              "y": 300,
+              "w": 310,
+              "h": 160,
+              "rotation": 0
+            },
+            "z": 10,
+            "style": {
+              "fill": "transparent",
+              "stroke": "transparent",
+              "strokeWidth": 0,
+              "radius": 0,
+              "opacity": 1,
+              "color": "#172033",
+              "fontSize": 20,
+              "fontWeight": 500,
+              "textAlign": "left",
+              "fontFamily": "Inter, ui-sans-serif, system-ui, sans-serif",
+              "fontStyle": "normal",
+              "underline": false,
+              "strike": false,
+              "lineHeight": 1.25,
+              "letterSpacing": 0,
+              "verticalAlign": "middle",
+              "padding": 0
+            },
+            "component": {
+              "definitionId": "paperdom.step",
+              "props": {
+                "number": "2",
+                "title": "Compose your story",
+                "body": "Insert pieces and edit their properties."
+              }
+            }
+          },
+          {
+            "id": "step3",
+            "type": "component",
+            "name": "Process step",
+            "frame": {
+              "x": 870,
+              "y": 300,
+              "w": 310,
+              "h": 160,
+              "rotation": 0
+            },
+            "z": 10,
+            "style": {
+              "fill": "transparent",
+              "stroke": "transparent",
+              "strokeWidth": 0,
+              "radius": 0,
+              "opacity": 1,
+              "color": "#172033",
+              "fontSize": 20,
+              "fontWeight": 500,
+              "textAlign": "left",
+              "fontFamily": "Inter, ui-sans-serif, system-ui, sans-serif",
+              "fontStyle": "normal",
+              "underline": false,
+              "strike": false,
+              "lineHeight": 1.25,
+              "letterSpacing": 0,
+              "verticalAlign": "middle",
+              "padding": 0
+            },
+            "component": {
+              "definitionId": "paperdom.step",
+              "props": {
+                "number": "3",
+                "title": "Share and remix",
+                "body": "Export a document or a reusable library."
+              }
+            }
+          },
+          {
+            "id": "takeaway",
+            "type": "component",
+            "name": "Callout",
+            "frame": {
+              "x": 100,
+              "y": 525,
+              "w": 1080,
+              "h": 100,
+              "rotation": 0
+            },
+            "z": 10,
+            "style": {
+              "fill": "transparent",
+              "stroke": "transparent",
+              "strokeWidth": 0,
+              "radius": 0,
+              "opacity": 1,
+              "color": "#172033",
+              "fontSize": 20,
+              "fontWeight": 500,
+              "textAlign": "left",
+              "fontFamily": "Inter, ui-sans-serif, system-ui, sans-serif",
+              "fontStyle": "normal",
+              "underline": false,
+              "strike": false,
+              "lineHeight": 1.25,
+              "letterSpacing": 0,
+              "verticalAlign": "middle",
+              "padding": 0
+            },
+            "component": {
+              "definitionId": "paperdom.callout",
+              "props": {
+                "title": "Your work stays editable",
+                "body": "Linked instances preserve content when definitions change."
+              }
+            }
+          },
+          {
+            "id": "footer",
+            "type": "component",
+            "name": "Slide footer",
+            "frame": {
+              "x": 100,
+              "y": 658,
+              "w": 1080,
+              "h": 32,
+              "rotation": 0
+            },
+            "z": 10,
+            "style": {
+              "fill": "transparent",
+              "stroke": "transparent",
+              "strokeWidth": 0,
+              "radius": 0,
+              "opacity": 1,
+              "color": "#172033",
+              "fontSize": 20,
+              "fontWeight": 500,
+              "textAlign": "left",
+              "fontFamily": "Inter, ui-sans-serif, system-ui, sans-serif",
+              "fontStyle": "normal",
+              "underline": false,
+              "strike": false,
+              "lineHeight": 1.25,
+              "letterSpacing": 0,
+              "verticalAlign": "middle",
+              "padding": 0
+            },
+            "component": {
+              "definitionId": "paperdom.footer",
+              "props": {
+                "page": "05"
+              }
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": "paperdom.roadmap",
+      "name": "Roadmap",
+      "description": "Three milestones and a next action.",
+      "page": {
+        "id": "roadmap",
+        "name": "What comes next",
+        "notes": "Invite feedback and choose one next contribution.",
+        "size": {
+          "width": 1280,
+          "height": 720
+        },
+        "background": {
+          "color": "#ffffff"
+        },
+        "elements": [
+          {
+            "id": "heading",
+            "type": "component",
+            "name": "Section heading",
+            "frame": {
+              "x": 100,
+              "y": 60,
+              "w": 1080,
+              "h": 150,
+              "rotation": 0
+            },
+            "z": 10,
+            "style": {
+              "fill": "transparent",
+              "stroke": "transparent",
+              "strokeWidth": 0,
+              "radius": 0,
+              "opacity": 1,
+              "color": "#172033",
+              "fontSize": 20,
+              "fontWeight": 500,
+              "textAlign": "left",
+              "fontFamily": "Inter, ui-sans-serif, system-ui, sans-serif",
+              "fontStyle": "normal",
+              "underline": false,
+              "strike": false,
+              "lineHeight": 1.25,
+              "letterSpacing": 0,
+              "verticalAlign": "middle",
+              "padding": 0
+            },
+            "component": {
+              "definitionId": "paperdom.heading",
+              "props": {
+                "title": "Build what comes next.",
+                "subtitle": "A roadmap shaped by the people who use it.",
+                "eyebrow": "PAPERDOM / COMPOSE"
+              }
+            }
+          },
+          {
+            "id": "m1",
+            "type": "component",
+            "name": "Roadmap milestone",
+            "frame": {
+              "x": 100,
+              "y": 300,
+              "w": 330,
+              "h": 180,
+              "rotation": 0
+            },
+            "z": 10,
+            "style": {
+              "fill": "transparent",
+              "stroke": "transparent",
+              "strokeWidth": 0,
+              "radius": 0,
+              "opacity": 1,
+              "color": "#172033",
+              "fontSize": 20,
+              "fontWeight": 500,
+              "textAlign": "left",
+              "fontFamily": "Inter, ui-sans-serif, system-ui, sans-serif",
+              "fontStyle": "normal",
+              "underline": false,
+              "strike": false,
+              "lineHeight": 1.25,
+              "letterSpacing": 0,
+              "verticalAlign": "middle",
+              "padding": 0
+            },
+            "component": {
+              "definitionId": "paperdom.milestone",
+              "props": {}
+            }
+          },
+          {
+            "id": "m2",
+            "type": "component",
+            "name": "Roadmap milestone",
+            "frame": {
+              "x": 475,
+              "y": 300,
+              "w": 330,
+              "h": 180,
+              "rotation": 0
+            },
+            "z": 10,
+            "style": {
+              "fill": "transparent",
+              "stroke": "transparent",
+              "strokeWidth": 0,
+              "radius": 0,
+              "opacity": 1,
+              "color": "#172033",
+              "fontSize": 20,
+              "fontWeight": 500,
+              "textAlign": "left",
+              "fontFamily": "Inter, ui-sans-serif, system-ui, sans-serif",
+              "fontStyle": "normal",
+              "underline": false,
+              "strike": false,
+              "lineHeight": 1.25,
+              "letterSpacing": 0,
+              "verticalAlign": "middle",
+              "padding": 0
+            },
+            "component": {
+              "definitionId": "paperdom.milestone",
+              "props": {
+                "date": "NOW",
+                "title": "Reusable building blocks",
+                "status": "Components + templates · Ready"
+              }
+            }
+          },
+          {
+            "id": "m3",
+            "type": "component",
+            "name": "Roadmap milestone",
+            "frame": {
+              "x": 850,
+              "y": 300,
+              "w": 330,
+              "h": 180,
+              "rotation": 0
+            },
+            "z": 10,
+            "style": {
+              "fill": "transparent",
+              "stroke": "transparent",
+              "strokeWidth": 0,
+              "radius": 0,
+              "opacity": 1,
+              "color": "#172033",
+              "fontSize": 20,
+              "fontWeight": 500,
+              "textAlign": "left",
+              "fontFamily": "Inter, ui-sans-serif, system-ui, sans-serif",
+              "fontStyle": "normal",
+              "underline": false,
+              "strike": false,
+              "lineHeight": 1.25,
+              "letterSpacing": 0,
+              "verticalAlign": "middle",
+              "padding": 0
+            },
+            "component": {
+              "definitionId": "paperdom.milestone",
+              "props": {
+                "date": "NEXT",
+                "title": "A community collection",
+                "status": "Contributions · Welcome"
+              }
+            }
+          },
+          {
+            "id": "takeaway",
+            "type": "component",
+            "name": "Callout",
+            "frame": {
+              "x": 100,
+              "y": 535,
+              "w": 1080,
+              "h": 90,
+              "rotation": 0
+            },
+            "z": 10,
+            "style": {
+              "fill": "transparent",
+              "stroke": "transparent",
+              "strokeWidth": 0,
+              "radius": 0,
+              "opacity": 1,
+              "color": "#172033",
+              "fontSize": 20,
+              "fontWeight": 500,
+              "textAlign": "left",
+              "fontFamily": "Inter, ui-sans-serif, system-ui, sans-serif",
+              "fontStyle": "normal",
+              "underline": false,
+              "strike": false,
+              "lineHeight": 1.25,
+              "letterSpacing": 0,
+              "verticalAlign": "middle",
+              "padding": 0
+            },
+            "component": {
+              "definitionId": "paperdom.callout",
+              "props": {
+                "title": "Start with one useful piece",
+                "body": "Create a component, export the library, and share it on GitHub."
+              }
+            }
+          },
+          {
+            "id": "footer",
+            "type": "component",
+            "name": "Slide footer",
+            "frame": {
+              "x": 100,
+              "y": 658,
+              "w": 1080,
+              "h": 32,
+              "rotation": 0
+            },
+            "z": 10,
+            "style": {
+              "fill": "transparent",
+              "stroke": "transparent",
+              "strokeWidth": 0,
+              "radius": 0,
+              "opacity": 1,
+              "color": "#172033",
+              "fontSize": 20,
+              "fontWeight": 500,
+              "textAlign": "left",
+              "fontFamily": "Inter, ui-sans-serif, system-ui, sans-serif",
+              "fontStyle": "normal",
+              "underline": false,
+              "strike": false,
+              "lineHeight": 1.25,
+              "letterSpacing": 0,
+              "verticalAlign": "middle",
+              "padding": 0
+            },
+            "component": {
+              "definitionId": "paperdom.footer",
+              "props": {
+                "page": "06"
+              }
+            }
+          }
+        ]
+      }
+    }
+  ]
+}
