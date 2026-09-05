@@ -1,4 +1,4 @@
-import PptxGenJS from 'pptxgenjs';
+import PptxGenJS from '../vendor/pptxgenjs/pptxgen.es.js';
 import type {CanvasElement,CanvasPage,PaperDOMDocument} from './document-model.ts';
 import {parsePaperDOMDocument} from './document-model.ts';
 import {resolveComponent,defaultTheme} from './component-library.ts';
@@ -15,7 +15,7 @@ export function exportElements(page:CanvasPage,document:PaperDOMDocument):Canvas
   });
 }
 export function createPowerPoint(document:PaperDOMDocument) {
-  const parsed=parsePaperDOMDocument(document);if(!parsed.ok)throw new Error(parsed.error);
+  const parsed=parsePaperDOMDocument(document);if(!parsed.ok)throw new Error(parsed.error);document=parsed.document;
   const pptx=new PptxGenJS();const first=document.pages[0];pptx.defineLayout({name:'PAPERDOM',width:first.size.width/96,height:first.size.height/96});pptx.layout='PAPERDOM';pptx.title=document.title;pptx.subject='Created in PaperDOM';pptx.author='PaperDOM';
   for(const page of document.pages){const slide=pptx.addSlide();slide.hidden=!!page.hidden;slide.background={color:color(page.background.color,'FFFFFF')};if(page.notes)slide.addNotes(page.notes);const k=Math.min(first.size.width/page.size.width,first.size.height/page.size.height)/96;const ox=(first.size.width-page.size.width*k*96)/192,oy=(first.size.height-page.size.height*k*96)/192;
     const elements=exportElements(page,document);
@@ -33,7 +33,7 @@ export function createPowerPoint(document:PaperDOMDocument) {
 export async function downloadPowerPoint(document:PaperDOMDocument){await createPowerPoint(document).writeFile({fileName:`${filename(document.title)}.pptx`,compression:true});}
 
 export function standaloneHTML(document:PaperDOMDocument) {
-  const parsed=parsePaperDOMDocument(document);if(!parsed.ok)throw new Error(parsed.error);
+  const parsed=parsePaperDOMDocument(document);if(!parsed.ok)throw new Error(parsed.error);document=parsed.document;
   const pages=document.pages.filter(p=>!p.hidden).map((page,index)=>{
     const elements=exportElements(page,document);const content=elements.map(e=>{const f=e.frame,s=e.style;const style=`position:absolute;left:${f.x}px;top:${f.y}px;width:${f.w}px;height:${f.h}px;transform:rotate(${f.rotation}deg);opacity:${s.opacity};background:${s.fill==='transparent'?'transparent':'#'+color(s.fill,'FFFFFF')};border:${s.strokeWidth}px solid ${s.stroke==='transparent'?'transparent':'#'+color(s.stroke)};border-radius:${e.type==='ellipse'?'50%':s.radius+'px'};color:#${color(s.color)};font-size:${s.fontSize}px;font-weight:${s.fontWeight};font-style:${s.fontStyle};text-align:${s.textAlign};line-height:${s.lineHeight};letter-spacing:${s.letterSpacing}px;padding:${s.padding}px;white-space:pre-wrap;overflow:hidden;box-sizing:border-box;display:flex;align-items:${s.verticalAlign==='top'?'flex-start':s.verticalAlign==='bottom'?'flex-end':'center'};text-decoration:${s.underline?'underline ':''}${s.strike?'line-through':''};`;
       if(e.type==='line'||e.type==='connector'){const a=endpointPoint(e.from,[...page.elements,...elements]),b=endpointPoint(e.to,[...page.elements,...elements]);return `<svg aria-hidden="true" viewBox="0 0 ${page.size.width} ${page.size.height}" style="position:absolute;inset:0;width:100%;height:100%;pointer-events:none"><defs><marker id="arrow${index}_${escape(e.id)}" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto"><path d="M0,0 L0,6 L9,3 z" fill="#${color(s.stroke)}"/></marker></defs><line x1="${a.x}" y1="${a.y}" x2="${b.x}" y2="${b.y}" stroke="#${color(s.stroke)}" stroke-width="${s.strokeWidth}" stroke-dasharray="${s.lineStyle==='dashed'?'10 8':'none'}" ${e.type==='connector'?`marker-end="url(#arrow${index}_${escape(e.id)})"`:''}/></svg>`;}

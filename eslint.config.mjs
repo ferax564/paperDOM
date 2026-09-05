@@ -12,6 +12,7 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "next-env.d.ts",
+    "vendor/**", // Unmodified third-party runtime; provenance and integrity are tested.
   ]),
 ]);
 

@@ -689,7 +689,8 @@ export default function Home() {
     const reader = new FileReader();
     reader.onload = () => {
       const id = replaceId??uid("image");
-      const item = makeElement(id, "image", file.name, { x: 390, y: 190, w: 500, h: 320 }, {
+      const w=Math.min(500,page.size.width),h=Math.min(320,page.size.height);
+      const item = makeElement(id, "image", file.name, { x:(page.size.width-w)/2,y:(page.size.height-h)/2,w,h }, {
         z: Math.max(1, ...page.elements.map((e) => e.z)) + 1,
         style: makeStyle({ fill: "#f8fafc", stroke: "#cbd5e1", radius: 12 }),
         content: { src: String(reader.result), alt: file.name.replace(/\.[^.]+$/, "") },
@@ -700,7 +701,7 @@ export default function Home() {
     };
     reader.onerror = () => setSaveLabel("Image could not be read");
     reader.readAsDataURL(file);
-  }, [page.elements, page.id, patchPage]);
+  }, [page.elements, page.id,page.size.width,page.size.height, patchPage]);
 
   useEffect(() => {
     const onPaste = (event: ClipboardEvent) => {
