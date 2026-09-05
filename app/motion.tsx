@@ -17,7 +17,10 @@ export function useMotion(page: CanvasPage, presenting: boolean) {
         cursor.current = 0;
         const targets: HTMLElement[] = [];
         if (presenting) {
+            const seen=new Set<string>();
             for (const cue of page.animations ?? []) {
+                if(seen.has(cue.elementId))continue;
+                seen.add(cue.elementId);
                 if (['appear', 'fade-in', 'fly-in', 'zoom'].includes(cue.effect)) {
                     const target = root.current?.querySelector<HTMLElement>(`[data-element-id="${CSS.escape(cue.elementId)}"]`);
                     if (target) {
