@@ -134,3 +134,25 @@ test("page transactions reject resource-loading backgrounds", () => {
   assert.match(result.message, /external resource/);
   assert.equal(document.pages[0].background.color, "#ffffff");
 });
+
+test("preview reports element ordering changes even when element values are unchanged", () => {
+  const document = documentFixture();
+  const moved = structuredClone(document.pages[0].elements[0]);
+  document.pages[0].elements.push(textElement("text_2"));
+  const result = previewTransaction(document, { operations: [
+    { op: "deleteElements", ids: [moved.id] },
+    { op: "createElement", element: moved },
+  ] });
+  assert.equal(result.ok, true);
+  assert.deepEqual(result.document.pages[0].elements.map((element) => element.id), ["text_2", "text_1"]);
+  assert.ok(result.changes.some((change) => change.elementId === moved.id && change.action === "moved" && change.fields.includes("index")));
+});
+
+test("operation and actor discriminators require literal strings", () => {
+  const document = documentFixture();
+  assert.equal(previewTransaction(document, { ...update(), actor: { id: "bot", name: "Bot", type: ["agent"] } }).error, "invalid_transaction");
+  const result = previewTransaction(document, { operations: [{ op: ["replaceText"], elementId: "text_1", text: "Unexpected edit" }] });
+  assert.equal(result.ok, false);
+  assert.equal(result.error, "invalid_operation");
+  assert.equal(document.pages[0].elements[0].content.text, "Hello");
+});

@@ -23,9 +23,9 @@ npm run test:browser
 | Text boxes | Click and reverse-drag geometry, bounds, minimum dimensions |
 | Plain-text lists | Bullets, numbering, mixed input, blank lines, indentation, CRLF normalization |
 | Document model | Legacy normalization, nested defaults, IDs, endpoints, style ranges, unsafe image schemes, storage keys |
-| Agent API core | Revision conflicts, nested patching, deletion cleanup, atomic page operations, deterministic preview/diff, draft conflicts, isolated queries/proposals, sequential calls, rotated bounds, alt-text warnings |
+| Agent API core | Revision conflicts, nested patching, deletion cleanup, atomic page operations, deterministic preview/diff including element order, strict operation/actor discriminators, draft conflicts, isolated queries/proposals, sequential calls, rotated bounds, alt-text warnings |
 | CLI | Validation/outline/preview/apply, stale revisions, exclusive file creation and input preservation |
-| Browser workflow | Proposal preview/accept/reject, Escape/focus, invalid/stale proposals, back-to-back undo, notes review, page add/duplicate/reorder/delete and reload persistence |
+| Browser workflow | Proposal preview/accept/reject, Escape/focus, invalid/stale proposals, back-to-back undo, notes review, page add/duplicate/reorder/delete and reload persistence, retained API handles across page changes/deletion and active text editing |
 | Authentication helper | Local return paths and open-redirect rejection |
 | Production artifact | Worker import, HTML response, preview metadata, PaperDOM branding, core editor controls |
 | Production dependencies | CI audit at high severity or above |

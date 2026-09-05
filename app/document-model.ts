@@ -381,7 +381,7 @@ export function applyDocumentTransaction(
     return transactionError(document, "invalid_transaction", "description must be a string");
   }
   if (payload.actor !== undefined && (!isRecord(payload.actor) || !isNonEmptyString(payload.actor.id) ||
-    !isNonEmptyString(payload.actor.name) || !["human", "agent"].includes(String(payload.actor.type)))) {
+    !isNonEmptyString(payload.actor.name) || (payload.actor.type !== "human" && payload.actor.type !== "agent"))) {
     return transactionError(document, "invalid_transaction", "actor requires id, name, and human or agent type");
   }
 
@@ -392,7 +392,7 @@ export function applyDocumentTransaction(
 
   for (let index = 0; index < operations.length; index += 1) {
     const candidateOperation = operations[index];
-    if (!isRecord(candidateOperation) || !supportedOperations.has(String(candidateOperation.op))) {
+    if (!isRecord(candidateOperation) || typeof candidateOperation.op !== "string" || !supportedOperations.has(candidateOperation.op)) {
       return transactionError(document, "invalid_operation", "Unsupported operation", index);
     }
     const operation: Record<string, unknown> = candidateOperation;

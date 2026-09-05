@@ -82,6 +82,11 @@ export function diffDocuments(before: PaperDOMDocument, after: PaperDOMDocument)
       const old = oldElements.get(elementId), next = newElements.get(elementId);
       const fields = old && next ? changedFields(old, next) : [];
       if (!old || !next || fields.length) changes.push({ pageId, elementId, action: !old ? "created" : !next ? "deleted" : "updated", fields });
+      // Equal-z objects render in array order; delete/recreate can change that order
+      // without changing any element fields.
+      if (old && next && a!.elements.indexOf(old) !== b!.elements.indexOf(next)) {
+        changes.push({ pageId, elementId, action: "moved", fields: ["index"] });
+      }
     }
   }
   return changes;

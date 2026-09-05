@@ -110,3 +110,41 @@ test("propose opens notes review without committing and isolates returned values
   await page.getByRole("button", { name: "Accept changes", exact: true }).click();
   expect((await readDocument(page)).pages[0].notes).toBe("Explain each boundary.");
 });
+
+test("retained API handles follow page selection and deletion without a render", async ({ page }) => {
+  await page.evaluate(() => { window.retainedPaperDOM = window.paperdom; });
+  const secondPage = (await readDocument(page)).pages[1];
+  await page.locator(".page-item").nth(1).click();
+  const result = await page.evaluate((expectedPageId) => {
+    const api = window.retainedPaperDOM;
+    const scene = api.sceneSummary();
+    const target = api.getPage(expectedPageId).elements.find((element) => element.type === "text");
+    const update = api.transaction({ operations: [{ op: "replaceText", elementId: target.id, text: "On the selected page" }] });
+    const deleted = api.transaction({ operations: [{ op: "deletePage", pageId: expectedPageId }] });
+    const remaining = api.getDocument().pages[0];
+    const nextTarget = remaining.elements.find((element) => element.type === "text");
+    const nextUpdate = api.transaction({ operations: [{ op: "replaceText", elementId: nextTarget.id, text: "After deleting the selected page" }] });
+    return { scene, update, deleted, nextUpdate };
+  }, secondPage.id);
+  expect(result.scene.page.id).toBe(secondPage.id);
+  expect(result.update.ok).toBe(true);
+  expect(result.deleted.ok).toBe(true);
+  expect(result.nextUpdate.ok).toBe(true);
+});
+
+test("retained API handles respect text editing started and finished later", async ({ page }) => {
+  await page.evaluate(() => { window.retainedPaperDOM = window.paperdom; });
+  await page.locator('[data-element-id="title_arch"]').dblclick();
+  const editor = page.getByRole("textbox", { name: "Edit System Architecture", exact: true });
+  await expect(editor).toBeVisible();
+  const before = await readDocument(page);
+  const blocked = await page.evaluate((payload) => window.retainedPaperDOM.transaction(payload), proposal(before.revision));
+  expect(blocked.ok).toBe(false);
+  expect(blocked.error).toBe("invalid_transaction");
+  expect(await readDocument(page)).toEqual(before);
+  await editor.press("Escape");
+  await expect(editor).not.toBeVisible();
+  const after = await readDocument(page);
+  const accepted = await page.evaluate((payload) => window.retainedPaperDOM.transaction(payload), proposal(after.revision));
+  expect(accepted.ok).toBe(true);
+});

@@ -235,6 +235,7 @@ export default function Home() {
   const panRef = useRef<{ x: number; y: number; left: number; top: number } | null>(null);
   const committedRef = useRef<PaperDOMDocument>(initialDocument);
   const documentRef = useRef<PaperDOMDocument>(initialDocument);
+  const agentContextRef = useRef<{ pageId: string; editingId: string | null }>({ pageId: initialDocument.pages[0].id, editingId: null });
   const historyActionRef = useRef(false);
   const spaceToolRef = useRef<Tool | null>(null);
   const textEditorRefs = useRef(new Map<string, HTMLDivElement>());
@@ -307,7 +308,8 @@ export default function Home() {
 
   useEffect(() => {
     documentRef.current = doc;
-  }, [doc]);
+    agentContextRef.current = { pageId: page.id, editingId };
+  }, [doc, page.id, editingId]);
 
   useEffect(() => {
     if (historyActionRef.current) {
@@ -754,11 +756,12 @@ export default function Home() {
 
   const getAgentAPI = useCallback(() => createAgentAPI({
     getDocument: () => documentRef.current,
-    getPageId: () => page.id,
+    getPageId: () => documentRef.current.pages.some((page) => page.id === agentContextRef.current.pageId)
+      ? agentContextRef.current.pageId : documentRef.current.pages[0].id,
     commit: commitAgentDocument,
-    isBusy: () => Boolean(gestureRef.current || editingId),
+    isBusy: () => Boolean(gestureRef.current || agentContextRef.current.editingId),
     propose: (preview) => setReview((current) => ({ key: (current?.key ?? 0) + 1, preview })),
-  }), [page.id, editingId, commitAgentDocument]);
+  }), [commitAgentDocument]);
 
   useEffect(() => {
     const browserWindow = window as unknown as { paperdom?: unknown; canvasdoc?: unknown };

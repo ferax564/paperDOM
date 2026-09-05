@@ -15,7 +15,7 @@ api.sceneSummary(); // current page, visible elements, arrows, plugins
 api.audit();
 ```
 
-Reads return isolated copies. Queries AND optional `pageId`, `ids`, `type`, `text`, `hidden`, and `locked` filters. `text` is a case-insensitive literal substring over names and string content. Hidden nodes are included unless filtered; scene summaries exclude them. Retained API handles read the latest document after synchronous transactions.
+Reads return isolated copies. Queries AND optional `pageId`, `ids`, `type`, `text`, `hidden`, and `locked` filters. `text` is a case-insensitive literal substring over names and string content. Hidden nodes are included unless filtered; scene summaries exclude them. Retained API handles read the latest document, follow the active page after selection changes, and respect the current editing state. If the active page is deleted in a synchronous transaction, omitted page targets fall back to the first remaining page.
 
 ## Preview and review
 
@@ -33,7 +33,7 @@ const preview = api.preview(proposal); // does not mutate editor state
 api.propose(proposal); // opens the human review dialog; does not commit
 ```
 
-A successful preview contains `before`, candidate `document`, revision-bound `payload`, `defaultPageId`, `previousRevision`, `revision`, `changes`, and `warnings`. Changes identify created/updated/deleted/moved pages and elements, including top-level changed fields. The diff compares values, independently of JSON property order. Warnings cover missing image alt text and rotated object bounds outside the page; they are advisory, not a complete accessibility or text-overflow audit. They apply to the entire candidate document, so existing issues may also appear.
+A successful preview contains `before`, candidate `document`, revision-bound `payload`, `defaultPageId`, `previousRevision`, `revision`, `changes`, and `warnings`. Changes identify created/updated/deleted/moved pages and elements, including top-level changed fields. The diff compares values, independently of JSON property order, and reports element-array order changes because order affects rendering when z values are equal. Warnings cover missing image alt text and rotated object bounds outside the page; they are advisory, not a complete accessibility or text-overflow audit. They apply to the entire candidate document, so existing issues may also appear.
 
 The **Review changes** toolbar button also accepts transaction JSON. The dialog shows before/after pages, speaker notes, attribution, differences, and warnings. Accept commits the complete transaction as one undo step. Reject/close changes nothing. Editing the proposal discards its preview. If the document changes after preview—including a draft edit before its revision increments—acceptance is blocked. Read the latest document, revise the proposal, and preview again. Page targets are captured at preview time.
 
