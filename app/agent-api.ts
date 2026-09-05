@@ -1,3 +1,4 @@
+import {randomId} from './ids.ts';
 import { effectiveLibrary } from './starter-library.ts';
 import { makeInstance, instantiateTemplate, type ComponentLibrary } from './component-library.ts';
 import {
@@ -163,7 +164,7 @@ export function createAgentAPI(adapter: {
     insertComponent: (definitionId: string, options: { id?: string; pageId?: string; x?: number; y?: number; props?: Record<string,string> } = {}) => {
       const definition = effectiveLibrary(adapter.getDocument()).components.find(c => c.id === definitionId);
       if (!definition) return { ok: false as const, message: 'Component not found' };
-      const id = options.id ?? `component_${crypto.randomUUID()}`;
+      const id = options.id ?? randomId('component');
       const result = transaction({ operations: [...libraryOperations(), { op: 'createElement', pageId: options.pageId, element: makeInstance(definition, id, { x: options.x ?? 100, y: options.y ?? 180 }, options.props) }] });
       return { ...result, elementId: id };
     },
@@ -175,7 +176,7 @@ export function createAgentAPI(adapter: {
     createPageFromTemplate: (templateId: string, options: { id?: string } = {}) => {
       const template = effectiveLibrary(adapter.getDocument()).templates.find(t => t.id === templateId);
       if (!template) return { ok: false as const, message: 'Template not found' };
-      const id = options.id ?? `page_${crypto.randomUUID()}`;
+      const id = options.id ?? randomId('page');
       return { ...transaction({ operations: [...libraryOperations(), { op: 'createPage', page: instantiateTemplate(template, id) }] }), pageId: id };
     },
     capabilities: () => ({ ...agentCapabilities(), review: Boolean(adapter.propose) }),

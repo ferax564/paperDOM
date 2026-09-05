@@ -37,7 +37,11 @@ export function resizePage(page:CanvasPage,width:number,height:number):CanvasPag
 }
 export function findText(document:PaperDOMDocument,query:string) {
   if(!query)return[];const needle=query.toLocaleLowerCase();
-  return document.pages.flatMap(page=>page.elements.filter(e=>[e.name,...Object.values(e.content??{}),...Object.values(e.component?.props??{}),...Object.values(effectiveLibrary(document).components.find(c=>c.id===e.component?.definitionId)?.properties??{}).map(p=>p.default),...(e.table?.rows.flat()??[])].some(t=>typeof t==='string'&&t.toLocaleLowerCase().includes(needle))).map(e=>({pageId:page.id,elementId:e.id,name:e.name,text:e.content?.text??e.name})));
+  return document.pages.flatMap(page=>page.elements.filter(e=>{
+    const definition=effectiveLibrary(document).components.find(c=>c.id===e.component?.definitionId);
+    const properties=Object.entries(definition?.properties??{}).map(([key,p])=>e.component?.props[key]??p.default);
+    return [e.name,...Object.values(e.content??{}),...properties,...(e.table?.rows.flat()??[])].some(t=>typeof t==='string'&&t.toLocaleLowerCase().includes(needle));
+  }).map(e=>({pageId:page.id,elementId:e.id,name:e.name,text:e.content?.text??e.name})));
 }
 export function resizeWithAspect(frame:Frame,next:Frame,handle:string,page:CanvasPage):Frame {
   const ratio=frame.w/frame.h;let w=next.w,h=next.h;
