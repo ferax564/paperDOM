@@ -31,6 +31,12 @@ import {
 } from "./document-model";
 import { createAgentAPI, isPreviewCurrent, type TransactionPreview } from "./agent-api.ts";
 import { EditorTools } from './editor-tools';
+import {composePage,replaceRunText} from './advanced-model.ts';
+import {RichText,RichTextEditor} from './rich-text';
+import {MasterEditor} from './master-editor';
+import {MediaView} from './media-view';
+import {CloudPanel,useCloud} from './cloud-panel';
+import {useMotion} from './motion';
 import { DataView } from './data-view';
 import { translateElement,copyElements, endpointPoint, parseTable, parseChart, resizeWithAspect, clamp } from './presentation-tools.ts';
 import { LibraryPanel } from './library-panel';
@@ -160,21 +166,22 @@ function snapEndpoint(x: number, y: number, elements: CanvasElement[]): Endpoint
   return best?.endpoint ?? { x, y };
 }
 
-function StaticPage({ page, document }: { page: CanvasPage; document?: PaperDOMDocument }) {
+function StaticPage({ page: source, document, playing=false }: { page: CanvasPage; document?: PaperDOMDocument; playing?:boolean }) {
+  const page=composePage(source,document);
   const markerId = useId();
   return <div className="static-page" style={{ background: page.background.color, width: page.size.width, height: page.size.height }}>
     <svg className="connector-layer" viewBox={`0 0 ${page.size.width} ${page.size.height}`} aria-hidden="true">
       <defs><marker id={markerId} markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto" markerUnits="strokeWidth"><path d="M0,0 L0,6 L9,3 z" fill="context-stroke" /></marker></defs>
       {page.elements.filter((e) => !e.hidden && ["connector", "line"].includes(e.type)).map((e) => {
         const a = endpointPosition(e.from, page.elements), b = endpointPosition(e.to, page.elements);
-        return <line key={e.id} x1={a.x} y1={a.y} x2={b.x} y2={b.y} stroke={e.style.stroke} strokeWidth={e.style.strokeWidth} strokeDasharray={e.style.lineStyle === "dashed" ? "10 8" : undefined} markerEnd={e.type === "connector" ? `url(#${markerId})` : undefined} />;
+        return <line key={e.id} data-element-id={playing?e.id:undefined} x1={a.x} y1={a.y} x2={b.x} y2={b.y} stroke={e.style.stroke} strokeWidth={e.style.strokeWidth} strokeDasharray={e.style.lineStyle === "dashed" ? "10 8" : undefined} markerEnd={e.type === "connector" ? `url(#${markerId})` : undefined} />;
       })}
     </svg>
     {[...page.elements].filter((e) => !e.hidden && !["connector", "line"].includes(e.type)).sort((a, b) => a.z - b.z).map((item) =>
-      <div key={item.id} className={`canvas-element element-${item.type === "text" ? "textbox" : item.type}`} style={{ left: item.frame.x, top: item.frame.y, width: item.frame.w, height: item.frame.h, transform: `rotate(${item.frame.rotation}deg)`, zIndex: item.z, opacity: item.style.opacity, background: item.style.fill, borderColor: item.style.stroke, borderWidth: item.style.strokeWidth, borderRadius: item.type === "ellipse" ? 999 : item.style.radius, color: item.style.color, fontSize: item.style.fontSize, fontWeight: item.style.fontWeight, fontFamily: item.style.fontFamily ?? DEFAULT_FONT, fontStyle: item.style.fontStyle ?? "normal", textDecoration: item.style.underline && item.style.strike ? "underline line-through" : item.style.underline ? "underline" : item.style.strike ? "line-through" : "none", lineHeight: item.style.lineHeight ?? 1.28, letterSpacing: item.style.letterSpacing ?? 0, textAlign: item.style.textAlign, alignItems: ["text", "shape", "ellipse"].includes(item.type) ? (item.style.verticalAlign === "bottom" ? "flex-end" : item.style.verticalAlign === "middle" || !item.style.verticalAlign ? "center" : "flex-start") : "stretch" }}>
-        {["table","chart"].includes(item.type) ? <DataView item={item}/> : item.type === "component" && document ? <ComponentView item={item} document={document} /> : item.type === "plugin" ? <div className="kpi-card"><div className="kpi-icon" style={{ background: item.content?.accent ?? "#6d5dfc" }}><span /></div><div className="kpi-label">{item.content?.label}</div><div className="kpi-value">{item.content?.value}</div><div className="kpi-trend" style={{ color: item.content?.accent }}>↗ {item.content?.trend}</div></div>
+      <div key={item.id} data-element-id={playing?item.id:undefined} className={`canvas-element element-${item.type === "text" ? "textbox" : item.type}`} style={{ left: item.frame.x, top: item.frame.y, width: item.frame.w, height: item.frame.h, transform: `rotate(${item.frame.rotation}deg)`, zIndex: item.z, opacity: item.style.opacity, background: item.style.fill, borderColor: item.style.stroke, borderWidth: item.style.strokeWidth, borderRadius: item.type === "ellipse" ? 999 : item.style.radius, color: item.style.color, fontSize: item.style.fontSize, fontWeight: item.style.fontWeight, fontFamily: item.style.fontFamily ?? DEFAULT_FONT, fontStyle: item.style.fontStyle ?? "normal", textDecoration: item.style.underline && item.style.strike ? "underline line-through" : item.style.underline ? "underline" : item.style.strike ? "line-through" : "none", lineHeight: item.style.lineHeight ?? 1.28, letterSpacing: item.style.letterSpacing ?? 0, textAlign: item.style.textAlign, alignItems: ["text", "shape", "ellipse"].includes(item.type) ? (item.style.verticalAlign === "bottom" ? "flex-end" : item.style.verticalAlign === "middle" || !item.style.verticalAlign ? "center" : "flex-start") : "stretch" }}>
+        {["audio","video"].includes(item.type)?<MediaView item={item} playing={playing}/>: ["table","chart"].includes(item.type) ? <DataView item={item}/> : item.type === "component" && document ? <ComponentView item={item} document={document} /> : item.type === "plugin" ? <div className="kpi-card"><div className="kpi-icon" style={{ background: item.content?.accent ?? "#6d5dfc" }}><span /></div><div className="kpi-label">{item.content?.label}</div><div className="kpi-value">{item.content?.value}</div><div className="kpi-trend" style={{ color: item.content?.accent }}>↗ {item.content?.trend}</div></div>
           : item.type === "image" ? (item.content?.src ? <img src={item.content.src} alt={item.content.alt ?? ""} /> : <div className="image-placeholder"><ImageIcon size={46} /><span>Image</span></div>)
-          : <div className="element-text" style={{ padding: item.style.padding ?? 12 }}>{item.content?.text}</div>}
+          : <div className="element-text" style={{ padding: item.style.padding ?? 12 }}><RichText item={item}/></div>}
       </div>)}
   </div>;
 }
@@ -194,6 +201,11 @@ function MiniPage({ page, document }: { page: CanvasPage; document:PaperDOMDocum
 
 export default function Home() {
   const [doc, setDoc] = useState<PaperDOMDocument>(initialDocument);
+  const [cloudOpen,setCloudOpen]=useState(false);
+  const [richTextId,setRichTextId]=useState<string|null>(null);
+  const [masterEditorId,setMasterEditorId]=useState<string|null>(null);
+  const [importReport,setImportReport]=useState<string[]|null>(null);
+  const pptxInputRef=useRef<HTMLInputElement>(null),mediaInputRef=useRef<HTMLInputElement>(null);
   const [toolsOpen,setToolsOpen]=useState(false);
   const [showNotes,setShowNotes]=useState(false);
   const [blackout,setBlackout]=useState(false);
@@ -245,6 +257,8 @@ export default function Home() {
   const pageW=page.size.width,pageH=page.size.height;
   const scale = Math.max(.08,Math.min(BASE_SCALE,(viewport.width-(viewport.width<900?100:650))/pageW,(viewport.height-200)/pageH))*zoom/100;
   const presentationPages=useMemo(()=>doc.pages.filter(p=>!p.hidden),[doc.pages]);
+  const presentPage = presentationPages[Math.min(presentIndex,presentationPages.length-1)]??page;
+  const {root:motionRoot,advance:advanceMotion}=useMotion(presentPage,presenting);
   const selected = useMemo(() => page.elements.filter((e) => selection.includes(e.id)), [page.elements, selection]);
   const selectedOne = selected.length === 1 ? selected[0] : null;
   const selectedListMode = selectedOne ? listModeForText(selectedOne.content?.text ?? "") : "none";
@@ -380,7 +394,7 @@ export default function Home() {
     return { x: Math.max(0, Math.min(pageW, (clientX - rect.left) / scale)), y: Math.max(0, Math.min(pageH, (clientY - rect.top) / scale)) };
   }, [scale,pageW,pageH]);
   const patchPage = useCallback((targetId: string, updater: (p: CanvasPage) => CanvasPage) => setDoc((d) => ({ ...d, revision: d.revision + 1, metadata: { ...d.metadata, updatedAt: new Date().toISOString() }, pages: d.pages.map((p) => p.id === targetId ? updater(p) : p) })), []);
-  const patchElement = useCallback((elementId: string, patch: Partial<CanvasElement>) => patchPage(pageId, (p) => ({ ...p, elements: p.elements.map((e) => e.id === elementId && (!e.locked || patch.locked!==undefined || patch.hidden!==undefined) ? { ...e, ...patch } : e) })), [pageId, patchPage]);
+  const patchElement = useCallback((elementId: string, patch: Partial<CanvasElement>) => patchPage(pageId, (p) => ({ ...p, elements: p.elements.map((e) => e.id === elementId && (!e.locked || patch.locked!==undefined || patch.hidden!==undefined) ? { ...e, ...patch, ...(e.runs&&patch.content?.text!==undefined&&patch.runs===undefined?{runs:replaceRunText(e.runs,patch.content.text)}:{}) } : e) })), [pageId, patchPage]);
   const patchFrame = useCallback((elementId: string, patch: Partial<Frame>) => patchPage(pageId, (p) => ({ ...p, elements: p.elements.map((e) => {
     if(e.id!==elementId||e.locked)return e;const next={...e.frame,...patch};next.w=Math.max(1,next.w);next.h=Math.max(1,next.h);
     if(e.aspectLocked&&e.frame.w>0&&e.frame.h>0){if(patch.w!==undefined)next.h=next.w*e.frame.h/e.frame.w;else if(patch.h!==undefined)next.w=next.h*e.frame.w/e.frame.h;}
@@ -580,7 +594,7 @@ export default function Home() {
   const duplicatePage = (target = page.id) => {
     const source = doc.pages.find((p) => p.id === target); if (!source) return;
     const map = new Map(source.elements.map((e) => [e.id, uid(e.type)]));
-    const copy: CanvasPage = { ...source, id: uid("page"), name: `${source.name} copy`, elements: source.elements.map((e) => ({ ...e, id: map.get(e.id)!, from: e.from ? { ...e.from, elementId: e.from.elementId ? map.get(e.from.elementId) : undefined } : undefined, to: e.to ? { ...e.to, elementId: e.to.elementId ? map.get(e.to.elementId) : undefined } : undefined })) };
+    const copy: CanvasPage = { ...source, id: uid("page"), name: `${source.name} copy`, animations:source.animations?.map(c=>({...c,id:uid('cue'),elementId:map.get(c.elementId)!})), elements: source.elements.map((e) => ({ ...e, id: map.get(e.id)!, from: e.from ? { ...e.from, elementId: e.from.elementId ? map.get(e.from.elementId) : undefined } : undefined, to: e.to ? { ...e.to, elementId: e.to.elementId ? map.get(e.to.elementId) : undefined } : undefined })) };
     const i = doc.pages.findIndex((p) => p.id === target);
     if (getAgentAPI().transaction({ operations: [{ op: "createPage", page: copy, index: i + 1 }] }).ok) setPageId(copy.id);
   };
@@ -616,9 +630,10 @@ export default function Home() {
 
   const deleteSelection = useCallback(() => {
     if (!selection.length) return;
-    patchPage(pageId, (p) => { const ids=p.elements.filter(e=>selection.includes(e.id)&&!e.locked).map(e=>e.id);return {
-      ...p, elements:p.elements.filter(e=>!ids.includes(e.id)&&!((e.from?.elementId&&ids.includes(e.from.elementId))||(e.to?.elementId&&ids.includes(e.to.elementId))))
-    }; });
+    patchPage(pageId, (p) => { const ids=p.elements.filter(e=>selection.includes(e.id)&&!e.locked).map(e=>e.id);
+      const elements=p.elements.filter(e=>!ids.includes(e.id)&&!((e.from?.elementId&&ids.includes(e.from.elementId))||(e.to?.elementId&&ids.includes(e.to.elementId))));
+      return {...p,elements,animations:p.animations?.filter(c=>elements.some(e=>e.id===c.elementId))};
+    });
     setSelection([]);
   }, [pageId, patchPage, selection]);
 
@@ -719,7 +734,7 @@ export default function Home() {
       const target = event.target as HTMLElement | null;
       if(presenting){
         if(event.key==='Escape'){setPresenting(false);setBlackout(false);}
-        else if(['ArrowRight','ArrowDown','PageDown',' '].includes(event.key)){event.preventDefault();setPresentIndex(i=>Math.min(presentationPages.length-1,i+1));setBlackout(false);}
+        else if(['ArrowRight','ArrowDown','PageDown',' '].includes(event.key)){event.preventDefault();if(!advanceMotion())setPresentIndex(i=>Math.min(presentationPages.length-1,i+1));setBlackout(false);}
         else if(['ArrowLeft','ArrowUp','PageUp'].includes(event.key)){event.preventDefault();setPresentIndex(i=>Math.max(0,i-1));setBlackout(false);}
         else if(event.key==='Home'){event.preventDefault();setPresentIndex(0);}
         else if(event.key==='End'){event.preventDefault();setPresentIndex(presentationPages.length-1);}
@@ -764,7 +779,7 @@ export default function Home() {
     };
     window.addEventListener("keydown", onKeyDown); window.addEventListener("keyup", onKeyUp);
     return () => { window.removeEventListener("keydown", onKeyDown); window.removeEventListener("keyup", onKeyUp); };
-  }, [deleteSelection, duplicateSelection, pageId, patchPage, patchTextStyle, presenting, redo, selectedOne, selection, tool, undo,presentationPages.length,page.elements,copySelection,pasteSelection]);
+  }, [deleteSelection, duplicateSelection, pageId, patchPage, patchTextStyle, presenting, redo, selectedOne, selection, tool, undo,presentationPages.length,page.elements,copySelection,pasteSelection,advanceMotion]);
 
   const commitAgentDocument = useCallback((next: PaperDOMDocument) => {
     // Record each agent transaction synchronously, including back-to-back calls.
@@ -778,6 +793,8 @@ export default function Home() {
     const active = next.pages.find(page => page.id === agentContextRef.current.pageId) ?? next.pages[0];
     setSelection(ids => ids.filter(id => active.elements.some(element => element.id === id)));
   }, []);
+
+  const cloud=useCloud(()=>documentRef.current,commitAgentDocument,()=>!!(gestureRef.current||editingId||richTextId||masterEditorId));
 
   const getAgentAPI = useCallback(() => createAgentAPI({
     getDocument: () => documentRef.current,
@@ -802,7 +819,6 @@ export default function Home() {
     };
   }, [getAgentAPI]);
 
-  const presentPage = presentationPages[Math.min(presentIndex,presentationPages.length-1)]??page;
   const presentScale = Math.max(.05,Math.min(1,(viewport.width-90)/presentPage.size.width,(viewport.height-(showNotes?300:150))/presentPage.size.height));
   useEffect(()=>{if(!presenting)return;const start=Date.now();const timer=window.setInterval(()=>setElapsed(Math.floor((Date.now()-start)/1000)),1000);return()=>window.clearInterval(timer);},[presenting]);
   useEffect(()=>{if(!presenting||!presentPage.advanceSeconds)return;const timer=window.setTimeout(()=>setPresentIndex(i=>Math.min(presentationPages.length-1,i+1)),presentPage.advanceSeconds*1000);return()=>window.clearTimeout(timer);},[presenting,presentPage.id,presentPage.advanceSeconds,presentationPages.length]);
@@ -833,6 +849,9 @@ export default function Home() {
     else if(action==='group'||action==='ungroup'){const groupId=action==='group'?uid('group'):undefined;if(action==='group'&&selected.length<2)throw new Error('Select at least two objects.');requireSuccess(getAgentAPI().transaction({operations:selected.filter(e=>!e.locked).map(e=>({op:'patchElement',elementId:e.id,patch:{groupId}}))}));}
     else if(action==='previousPage'||action==='nextPage'){const ids=doc.pages.map(p=>p.id),i=ids.indexOf(page.id),j=clamp(i+(action==='previousPage'?-1:1),0,ids.length-1);[ids[i],ids[j]]=[ids[j],ids[i]];requireSuccess(getAgentAPI().transaction({operations:[{op:'reorderPages',pageIds:ids}]}));}
     else if(action==='json')exportJson();else if(action==='editJson')openJson();else if(action==='inspector'){setToolsOpen(false);setMobileInspector(v=>!v);}
+    else if(action==='importPptx')pptxInputRef.current?.click();
+    else if(action==='media')mediaInputRef.current?.click();
+    else if(action==='editMaster')setMasterEditorId(page.masterId??null);
     else if(action==='print')window.print();
     else if(action==='pptx'){const {downloadPowerPoint}=await import('./presentation-export');await downloadPowerPoint(documentRef.current);}
     else if(action==='html'){const {downloadHTML}=await import('./presentation-export');await downloadHTML(documentRef.current);}
@@ -843,7 +862,7 @@ export default function Home() {
     return <div key={item.id} data-element-id={item.id} className={`canvas-element element-${item.type === "text" ? "textbox" : item.type} ${isSelected ? "selected" : ""} ${editing ? "editing" : ""}`}
       style={{ left: item.frame.x, top: item.frame.y, width: item.frame.w, height: item.frame.h, transform: `rotate(${item.frame.rotation}deg)`, zIndex: item.z, opacity: item.style.opacity, background: item.style.fill, borderColor: item.style.stroke, borderWidth: item.style.strokeWidth, borderRadius: item.type === "ellipse" ? 999 : item.style.radius, color: item.style.color, fontSize: item.style.fontSize, fontWeight: item.style.fontWeight, fontFamily: item.style.fontFamily ?? DEFAULT_FONT, fontStyle: item.style.fontStyle ?? "normal", textDecoration: item.style.underline && item.style.strike ? "underline line-through" : item.style.underline ? "underline" : item.style.strike ? "line-through" : "none", lineHeight: item.style.lineHeight ?? 1.28, letterSpacing: item.style.letterSpacing ?? 0, textAlign: item.style.textAlign, alignItems: ["text", "shape", "ellipse"].includes(item.type) ? (item.style.verticalAlign === "bottom" ? "flex-end" : item.style.verticalAlign === "middle" || !item.style.verticalAlign ? "center" : "flex-start") : "stretch" }}
       onPointerDown={(e) => beginElementGesture(e, item)} onDoubleClick={(e) => { e.stopPropagation(); if (!item.locked&&["text", "shape", "ellipse"].includes(item.type)) setEditingId(item.id); }}>
-      {["table","chart"].includes(item.type) ? <DataView item={item}/> : item.type === "component" ? <ComponentView item={item} document={doc}/> : item.type === "plugin" ? <div className="kpi-card"><div className="kpi-icon" style={{ background: item.content?.accent ?? "#6d5dfc" }}><span /></div><div className="kpi-label">{item.content?.label}</div><div className="kpi-value">{item.content?.value}</div><div className="kpi-trend" style={{ color: item.content?.accent }}>↗ {item.content?.trend}</div></div>
+      {["audio","video"].includes(item.type)?<MediaView item={item}/>: ["table","chart"].includes(item.type) ? <DataView item={item}/> : item.type === "component" ? <ComponentView item={item} document={doc}/> : item.type === "plugin" ? <div className="kpi-card"><div className="kpi-icon" style={{ background: item.content?.accent ?? "#6d5dfc" }}><span /></div><div className="kpi-label">{item.content?.label}</div><div className="kpi-value">{item.content?.value}</div><div className="kpi-trend" style={{ color: item.content?.accent }}>↗ {item.content?.trend}</div></div>
         : item.type === "image" ? (item.content?.src ? <img src={item.content.src} alt={item.content.alt ?? ""} draggable={false} /> : <div className="image-placeholder"><ImageIcon size={46} /><span>Drop or paste an image</span></div>)
         : <div
           ref={(node) => { if (node) textEditorRefs.current.set(item.id, node); else textEditorRefs.current.delete(item.id); }}
@@ -880,7 +899,7 @@ export default function Home() {
             if (text !== (item.content?.text ?? "")) patchElement(item.id, { name: text.trim().slice(0, 28) || "Text box", content: { ...item.content, text } });
             setEditingId(null);
           }}
-        >{item.content?.text}</div>}
+        ><RichText item={item}/></div>}
       {isSelected && !editing && <><button className="rotate-handle" onPointerDown={(e) => beginRotate(e, item)} aria-label="Rotate" />{["nw", "n", "ne", "e", "se", "s", "sw", "w"].map((h) => <button key={h} className={`resize-handle handle-${h}`} onPointerDown={(e) => beginResize(e, item, h)} aria-label={`Resize ${h}`} />)}</>}
     </div>;
   };
@@ -889,7 +908,7 @@ export default function Home() {
     <header className="topbar" inert={presenting}>
       <div className="brand-block"><div className="brand-mark">P</div><div className="brand-name">PaperDOM</div><div className="workspace-badge">Workspace</div></div>
       <div className="document-title-wrap"><input className="document-title" value={doc.title} onFocus={(e) => { titleBeforeEditRef.current = e.currentTarget.value; }} onChange={(e) => setDoc((d) => ({ ...d, title: e.target.value }))} onBlur={() => setDoc((d) => d.title === titleBeforeEditRef.current ? d : ({ ...d, revision: d.revision + 1, metadata: { ...d.metadata, updatedAt: new Date().toISOString() } }))} aria-label="Document title" /><div className="saved-state"><Cloud size={13} /><Check size={12} /> {saveLabel}</div></div>
-      <div className="top-actions"><button className="quiet-button" aria-pressed={toolsOpen} onClick={()=>setToolsOpen(v=>!v)}>Tools</button><button className="library-open-button" onClick={()=>setLibraryOpen(true)}><Puzzle size={16}/> Library</button><button className="icon-button" title="Undo" disabled={!past.length} onClick={undo}><Undo2 size={17} /></button><button className="icon-button" title="Redo" disabled={!future.length} onClick={redo}><Redo2 size={17} /></button><span className="top-divider" /><button className="quiet-button" onClick={() => { setPresentIndex(Math.max(0,presentationPages.findIndex((p) => p.id === page.id))); setPresenting(true); }}><Eye size={15} /> Preview</button><button className="quiet-button" onClick={() => setReview({ key: Date.now() })}><Check size={15} /> Review changes</button><button className="quiet-button" onClick={openJson}><Braces size={15} /> JSON</button><button className="export-button" onClick={exportJson}><Share2 size={15} /> Export JSON <ChevronDown size={14} /></button><button className="present-button" onClick={() => { setPresentIndex(Math.max(0,presentationPages.findIndex((p) => p.id === page.id))); setPresenting(true); }}><Play size={15} fill="currentColor" /> Present</button><div className="avatar" aria-label="PaperDOM workspace">PD</div></div>
+      <div className="top-actions"><button className="quiet-button" onClick={()=>setCloudOpen(true)}><Cloud size={15}/> Shared</button><button className="quiet-button" aria-pressed={toolsOpen} onClick={()=>setToolsOpen(v=>!v)}>Tools</button><button className="library-open-button" onClick={()=>setLibraryOpen(true)}><Puzzle size={16}/> Library</button><button className="icon-button" title="Undo" disabled={!past.length} onClick={undo}><Undo2 size={17} /></button><button className="icon-button" title="Redo" disabled={!future.length} onClick={redo}><Redo2 size={17} /></button><span className="top-divider" /><button className="quiet-button" onClick={() => { setPresentIndex(Math.max(0,presentationPages.findIndex((p) => p.id === page.id))); setPresenting(true); }}><Eye size={15} /> Preview</button><button className="quiet-button" onClick={() => setReview({ key: Date.now() })}><Check size={15} /> Review changes</button><button className="quiet-button" onClick={openJson}><Braces size={15} /> JSON</button><button className="export-button" onClick={exportJson}><Share2 size={15} /> Export JSON <ChevronDown size={14} /></button><button className="present-button" onClick={() => { setPresentIndex(Math.max(0,presentationPages.findIndex((p) => p.id === page.id))); setPresenting(true); }}><Play size={15} fill="currentColor" /> Present</button><div className="avatar" aria-label="PaperDOM workspace">PD</div></div>
     </header>
     {toolsOpen&&!presenting&&<EditorTools document={doc} page={page} selection={selection} onClose={()=>setToolsOpen(false)} onTransaction={operations=>requireSuccess(getAgentAPI().transaction({operations}))} onSelect={(pageId,ids)=>{setPageId(pageId);setSelection(ids);setTool('select');}} onAction={toolAction}/>}
     <div className="editor-main" inert={presenting}>
@@ -909,7 +928,8 @@ export default function Home() {
             <div className="zoom-control"><button onClick={() => setZoom((z) => Math.max(50, z - 10))} aria-label="Zoom out"><ZoomOut size={15} /></button><span>{zoom}%</span><button onClick={() => setZoom((z) => Math.min(150, z + 10))} aria-label="Zoom in"><ZoomIn size={15} /></button></div>
           </div>
         </div>
-        <div className="workspace-scroll" ref={workspaceScrollRef}><div className="workspace-stage" style={{ width: pageW * scale, height: pageH * scale }}><div ref={pageRef} className="page-canvas" style={{ width: pageW, height: pageH, background: page.background.color, transform: `scale(${scale})` }} onPointerDown={onCanvasDown} onDragOver={event=>{if(event.dataTransfer.types.includes("Files"))event.preventDefault();}} onDrop={event=>{const file=[...event.dataTransfer.files].find(file=>file.type.startsWith("image/"));if(file){event.preventDefault();replaceImageRef.current=null;insertImageFile(file);}}}>
+        <div className="workspace-scroll" ref={workspaceScrollRef}><div className="workspace-stage" style={{ width: pageW * scale, height: pageH * scale }}><div ref={pageRef} className="page-canvas" style={{ width: pageW, height: pageH, background: composePage(page,doc).background.color, transform: `scale(${scale})` }} onPointerDown={onCanvasDown} onDragOver={event=>{if(event.dataTransfer.types.includes("Files"))event.preventDefault();}} onDrop={event=>{const file=[...event.dataTransfer.files].find(file=>file.type.startsWith("image/"));if(file){event.preventDefault();replaceImageRef.current=null;insertImageFile(file);}}}>
+          {page.masterId&&<div className="master-surface"><StaticPage page={{...page,elements:[]}} document={doc}/></div>}
           <svg className="connector-layer" viewBox={`0 0 ${pageW} ${pageH}`} aria-hidden="true"><defs><marker id="arrowhead" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto" markerUnits="strokeWidth"><path d="M0,0 L0,6 L9,3 z" fill="context-stroke" /></marker></defs>
             {page.elements.filter((e) => !e.hidden && ["connector", "line"].includes(e.type)).map((e) => { const a = endpointPosition(e.from, page.elements), b = endpointPosition(e.to, page.elements), isSelected = selection.includes(e.id); return <g key={e.id} className={isSelected ? "connector-selected" : ""} onPointerDown={(event) => beginElementGesture(event as unknown as React.PointerEvent, e)}><line x1={a.x} y1={a.y} x2={b.x} y2={b.y} stroke={e.style.stroke} strokeWidth={e.style.strokeWidth} strokeDasharray={e.style.lineStyle === "dashed" ? "10 8" : undefined} markerEnd={e.type === "connector" ? "url(#arrowhead)" : undefined} /><line className="connector-hit" x1={a.x} y1={a.y} x2={b.x} y2={b.y} />{isSelected && <><circle className="connector-endpoint" cx={a.x} cy={a.y} r="7" onPointerDown={(event) => beginEndpoint(event, e, "from")} /><circle className="connector-endpoint" cx={b.x} cy={b.y} r="7" onPointerDown={(event) => beginEndpoint(event, e, "to")} /></>}</g>; })}
             {draftLine && <line x1={draftLine.x1} y1={draftLine.y1} x2={draftLine.x2} y2={draftLine.y2} stroke="#6d5dfc" strokeWidth="3" strokeDasharray="8 6" markerEnd={draftLine.arrow ? "url(#arrowhead)" : undefined} />}
@@ -930,7 +950,7 @@ export default function Home() {
           <section className="inspector-section"><div className="section-title">Position & size</div><div className="field-grid"><Field label="X" value={selectedOne.frame.x} onChange={(x) => patchFrame(selectedOne.id, { x })} /><Field label="Y" value={selectedOne.frame.y} onChange={(y) => patchFrame(selectedOne.id, { y })} /><Field label="W" value={selectedOne.frame.w} min={1} onChange={(w) => patchFrame(selectedOne.id, { w })} /><Field label="H" value={selectedOne.frame.h} min={1} onChange={(h) => patchFrame(selectedOne.id, { h })} /></div><div className="field-row"><Field label="°" value={selectedOne.frame.rotation} onChange={(rotation) => patchFrame(selectedOne.id, { rotation })} /><button className="lock-ratio" disabled={selectedOne.frame.w===0||selectedOne.frame.h===0} aria-label="Lock aspect ratio" aria-pressed={selectedOne.aspectLocked??false} onClick={()=>patchElement(selectedOne.id,{aspectLocked:!selectedOne.aspectLocked})}><Lock size={14} /></button></div></section>
           <section className="inspector-section"><div className="section-title">Arrange</div><div className="arrange-grid"><button onClick={() => patchElement(selectedOne.id, { z: Math.max(...page.elements.map((e) => e.z)) + 1 })}><BringToFront size={15} /> Front</button><button onClick={() => patchElement(selectedOne.id, { z: Math.min(...page.elements.map((e) => e.z)) - 1 })}><SendToBack size={15} /> Back</button></div></section>
           <section className="inspector-section"><div className="section-title">Appearance</div><label className="color-field"><span>Fill</span><input type="color" value={selectedOne.style.fill === "transparent" ? "#ffffff" : selectedOne.style.fill} onChange={(e) => patchElement(selectedOne.id, { style: { ...selectedOne.style, fill: e.target.value } })} /><code>{selectedOne.style.fill}</code></label><label className="color-field"><span>Border</span><input type="color" value={selectedOne.style.stroke === "transparent" ? "#ffffff" : selectedOne.style.stroke} onChange={(e) => patchElement(selectedOne.id, { style: { ...selectedOne.style, stroke: e.target.value } })} /><code>{selectedOne.style.stroke}</code></label><div className="field-grid"><Field label="R" value={selectedOne.style.radius} min={0} onChange={(radius) => patchElement(selectedOne.id, { style: { ...selectedOne.style, radius } })} /><Field label="%" value={selectedOne.style.opacity * 100} min={0} max={100} onChange={(v) => patchElement(selectedOne.id, { style: { ...selectedOne.style, opacity: v / 100 } })} /></div></section>
-          {["text", "shape", "ellipse"].includes(selectedOne.type) && <section className="inspector-section">
+          {["text", "shape", "ellipse"].includes(selectedOne.type) && <section className="inspector-section"><button disabled={selectedOne.locked} onClick={()=>setRichTextId(selectedOne.id)}>Rich text and links</button>
             <div className="section-title">Typography</div>
             <button className="edit-text-button" onClick={() => setEditingId(selectedOne.id)}><Type size={14} /> Edit text <span>Enter</span></button>
             <label className="font-family-field"><span>Font family</span><select aria-label="Font family" value={selectedOne.style.fontFamily ?? DEFAULT_FONT} onChange={(e) => patchTextStyle(selectedOne, { fontFamily: e.target.value })}>{FONT_OPTIONS.map((font) => <option key={font.label} value={font.value}>{font.label}</option>)}</select></label>
@@ -954,6 +974,7 @@ export default function Home() {
             <div className="text-edit-note"><strong>Enter</strong> new line <span>•</span> <strong>Ctrl + Enter</strong> finish editing</div>
           </section>}
           {selectedOne.type === "plugin" && <section className="inspector-section plugin-properties"><div className="section-title">KPI plugin properties</div><label className="full-field"><span>Label</span><input value={selectedOne.content?.label ?? ""} onChange={(e) => patchElement(selectedOne.id, { content: { ...selectedOne.content, label: e.target.value } })} /></label><label className="full-field"><span>Value</span><input value={selectedOne.content?.value ?? ""} onChange={(e) => patchElement(selectedOne.id, { content: { ...selectedOne.content, value: e.target.value } })} /></label><label className="full-field"><span>Trend</span><input value={selectedOne.content?.trend ?? ""} onChange={(e) => patchElement(selectedOne.id, { content: { ...selectedOne.content, trend: e.target.value } })} /></label><label className="color-field"><span>Accent</span><input type="color" value={selectedOne.content?.accent ?? "#6d5dfc"} onChange={(e) => patchElement(selectedOne.id, { content: { ...selectedOne.content, accent: e.target.value } })} /><code>{selectedOne.content?.accent}</code></label><div className="plugin-schema-note"><Puzzle size={14} /> Generated from com.company.kpi schema</div></section>}
+          {selectedOne.media&&<section className="inspector-section"><div className="section-title">Media playback</div>{(['autoplay','loop','muted']as const).map(key=><label className="tools-check" key={key}><input type="checkbox" checked={selectedOne.media![key]} onChange={e=>patchElement(selectedOne.id,{media:{...selectedOne.media!,[key]:e.target.checked}})}/>{key}</label>)}<Field label="Start" min={0} max={selectedOne.media.end?selectedOne.media.end-.01:36000} value={selectedOne.media.start} onChange={start=>patchElement(selectedOne.id,{media:{...selectedOne.media!,start}})}/><Field label="End (0 = full)" min={0} value={selectedOne.media.end??0} onChange={end=>{if(!end||end>selectedOne.media!.start)patchElement(selectedOne.id,{media:{...selectedOne.media!,end:end||undefined}});}}/><label className="full-field"><span>Media description</span><input value={selectedOne.content?.alt??''} onChange={e=>patchElement(selectedOne.id,{content:{...selectedOne.content,alt:e.target.value}})}/></label><label className="full-field"><span>Captions URL (.vtt)</span><input defaultValue={selectedOne.media.captions??''} onBlur={e=>{const value=e.target.value;if(!value||/^https:\/\//.test(value))patchElement(selectedOne.id,{media:{...selectedOne.media!,captions:value||undefined}});else setSaveLabel('Captions require an HTTPS URL');}}/></label></section>}
           {selectedOne.type === "image" && <section className="inspector-section"><div className="section-title">Image</div><label className="full-field"><span>Alt text</span><input value={selectedOne.content?.alt ?? ""} onChange={(e) => patchElement(selectedOne.id, { content: { ...selectedOne.content, alt: e.target.value } })} /></label><button className="replace-image-button" onClick={() => {replaceImageRef.current=selectedOne.id;imageInputRef.current?.click();}}><Upload size={14} /> Replace image</button></section>}
           {["connector", "line"].includes(selectedOne.type) && <section className="inspector-section"><div className="section-title">Line</div><div className="field-grid"><Field label="Width" value={selectedOne.style.strokeWidth} min={1} max={16} onChange={(strokeWidth) => patchElement(selectedOne.id, { style: { ...selectedOne.style, strokeWidth } })} /><label className="select-field"><span>Style</span><select value={selectedOne.style.lineStyle ?? "solid"} onChange={(e) => patchElement(selectedOne.id, { style: { ...selectedOne.style, lineStyle: e.target.value as "solid" | "dashed" } })}><option value="solid">Solid</option><option value="dashed">Dashed</option></select></label></div></section>}
         </> : selected.length > 1 ? <section className="inspector-section"><div className="section-title">Align selection</div><div className="alignment-actions"><button onClick={() => alignSelection("left")}><AlignLeft size={16} /> Left</button><button onClick={() => alignSelection("center")}><AlignCenter size={16} /> Center</button><button onClick={() => alignSelection("top")}><AlignLeft size={16} className="rotate-90" /> Top</button><button onClick={() => alignSelection("middle")}><AlignCenter size={16} className="rotate-90" /> Middle</button><button className="wide-action" onClick={distributeSelection} disabled={selected.length < 3}><MoveRight size={16} /> Distribute horizontally</button></div></section> : <>
@@ -964,6 +985,12 @@ export default function Home() {
       </aside>
     </div>
     <input ref={imageInputRef} className="hidden-input" type="file" accept="image/png,image/jpeg,image/webp,image/gif" onChange={(e) => { insertImageFile(e.target.files?.[0]); e.currentTarget.value = ""; }} />
+    {cloudOpen&&<CloudPanel cloud={cloud} onClose={()=>setCloudOpen(false)}/>}
+    {richTextId&&page.elements.find(e=>e.id===richTextId)&&<RichTextEditor key={richTextId} item={page.elements.find(e=>e.id===richTextId)!} onClose={()=>setRichTextId(null)} onSave={runs=>patchElement(richTextId,{runs,content:{...page.elements.find(e=>e.id===richTextId)!.content,text:runs.map(r=>r.text).join('')}})}/>}
+    {masterEditorId&&doc.masters?.find(m=>m.id===masterEditorId)&&<MasterEditor key={masterEditorId} master={doc.masters.find(m=>m.id===masterEditorId)!} onClose={()=>setMasterEditorId(null)} onSave={master=>requireSuccess(getAgentAPI().transaction({operations:[{op:'setMasters',masters:doc.masters!.map(m=>m.id===master.id?master:m)}]}))}/>}
+    {importReport&&<div className="json-backdrop" role="dialog" aria-modal="true" aria-label="PowerPoint import report"><section className="rich-text-panel"><h2>PowerPoint import</h2><ul>{importReport.map((message,i)=><li key={i}>{message}</li>)}</ul><button onClick={()=>setImportReport(null)}>Close import report</button></section></div>}
+    <input ref={pptxInputRef} className="hidden-input" aria-label="Import PPTX file" type="file" accept=".pptx" onChange={async e=>{const file=e.target.files?.[0];e.currentTarget.value='';if(!file)return;try{setSaveLabel('Importing PowerPoint…');const {importPowerPoint}=await import('./pptx-import');const result=await importPowerPoint(await file.arrayBuffer(),file.name);commitAgentDocument({...result.document,revision:doc.revision+1});setPageId(result.document.pages[0].id);setSelection([]);setImportReport(result.warnings.length?result.warnings:['Imported supported slide content. Review layout and fonts before presenting.']);}catch(error){setImportReport([error instanceof Error?error.message:'Import failed']);}}}/>
+    <input ref={mediaInputRef} className="hidden-input" aria-label="Insert media file" type="file" accept="video/mp4,video/webm,audio/mpeg,audio/mp4,audio/wav,audio/ogg" onChange={async e=>{const file=e.target.files?.[0];e.currentTarget.value='';if(!file)return;if(file.size>25000000||! /^(video\/(mp4|webm)|audio\/(mpeg|mp4|wav|ogg))$/.test(file.type)){setSaveLabel('Choose supported media up to 25 MB');return;}const reader=new FileReader();reader.onload=()=>{const item=makeElement(uid('media'),file.type.startsWith('audio/')?'audio':'video',file.name,{x:80,y:100,w:Math.min(640,pageW-100),h:file.type.startsWith('audio/')?80:Math.min(360,pageH-120)},{z:Math.max(1,...page.elements.map(e=>e.z))+1,media:{src:String(reader.result),autoplay:false,loop:false,muted:false,start:0},content:{alt:file.name}});requireSuccess(getAgentAPI().transaction({operations:[{op:'createElement',element:item}]}));setSelection([item.id]);setToolsOpen(false);setMobileInspector(true);};reader.onerror=()=>setSaveLabel('Unable to read media');reader.readAsDataURL(file);}}/>
     <input ref={importInputRef} className="hidden-input" type="file" accept="application/json,.json" onChange={(e) => { void importJsonFile(e.target.files?.[0]); e.currentTarget.value = ""; }} />
 
     {libraryOpen && <LibraryPanel document={doc} selectedCount={selected.length} onClose={()=>setLibraryOpen(false)}
@@ -971,7 +998,7 @@ export default function Home() {
       onInsert={id=>{const result=getAgentAPI().insertComponent(id);requireSuccess(result);if('elementId' in result)setSelection([result.elementId]);setLibraryOpen(false);}}
       onTemplate={id=>{const result=getAgentAPI().createPageFromTemplate(id);requireSuccess(result);if('pageId' in result)setPageId(result.pageId);setSelection([]);setLibraryOpen(false);}}
       onExample={addExample} onImport={importLibrary} onSaveSelection={saveSelection}
-      onSavePage={name=>{const library=effectiveLibrary(documentRef.current);installLibrary({...library,templates:[...library.templates,{id:uid('template'),name,description:'Saved from your page',page:structuredClone(page)}]});}}
+      onSavePage={name=>{const library=effectiveLibrary(documentRef.current);installLibrary({...library,templates:[...library.templates,{id:uid('template'),name,description:'Saved from your page',page:structuredClone(composePage(page,doc))}]});}}
       onTheme={name=>requireSuccess(getAgentAPI().transaction({operations:[{op:'setTheme',theme:themes[name]}]}))}/>}
     {review && <AgentReview key={review.key} document={doc} pageId={page.id} initialPreview={review.preview}
       onClose={() => setReview(null)} renderPage={(page,document) => <StaticPage page={page} document={document} />}
@@ -995,9 +1022,9 @@ export default function Home() {
     <div className="print-deck" aria-hidden="true">{presentationPages.map(p=><section key={p.id} className="print-slide"><svg viewBox={`0 0 ${p.size.width} ${p.size.height}`} width="100%" height="100%"><foreignObject width={p.size.width} height={p.size.height}><StaticPage page={p} document={doc}/></foreignObject></svg></section>)}</div>
     {presenting && presentPage && <div className="present-overlay" role="dialog" aria-modal="true" aria-label="Presentation">
       <div className="present-top"><div className="present-brand"><div className="brand-mark">P</div><div><strong>{doc.title}</strong><span>Read-only presentation · {Math.floor(elapsed/60)}:{String(elapsed%60).padStart(2,"0")}</span></div></div><button className="quiet-button" onClick={()=>setShowNotes(v=>!v)}>Speaker notes</button><button className="quiet-button" onClick={()=>setBlackout(v=>!v)}>Black screen (B)</button><button autoFocus className="present-close" onClick={() => setPresenting(false)}><X size={18} /> Exit presentation</button></div>
-      <div className="present-stage"><div key={presentPage.id} className={`present-frame transition-${presentPage.transition??"none"}`} style={{ width: presentPage.size.width * presentScale, height: presentPage.size.height * presentScale,visibility:blackout?"hidden":"visible" }}><div style={{ transform: `scale(${presentScale})`, transformOrigin: "top left" }}><StaticPage page={presentPage} document={doc} /></div></div></div>
+      <div className="present-stage"><div ref={motionRoot} key={presentPage.id} className={`present-frame transition-${presentPage.transition??"none"}`} style={{ width: presentPage.size.width * presentScale, height: presentPage.size.height * presentScale,visibility:blackout?"hidden":"visible" }}><div style={{ transform: `scale(${presentScale})`, transformOrigin: "top left" }}><StaticPage page={presentPage} document={doc} playing /></div></div></div>
       {showNotes&&<aside className="present-notes"><strong>Speaker notes</strong><p>{presentPage.notes||"No notes for this slide."}</p></aside>}
-      <div className="present-controls"><button aria-label="Previous slide" disabled={presentIndex === 0} onClick={() => setPresentIndex((i) => Math.max(0, i - 1))}><ArrowLeft size={17} /></button><span><strong>{presentPage.name}</strong> · {presentIndex + 1} / {presentationPages.length}</span><button aria-label="Next slide" disabled={presentIndex === presentationPages.length - 1} onClick={() => setPresentIndex((i) => Math.min(presentationPages.length - 1, i + 1))}><ArrowRight size={17} /></button></div>
+      <div className="present-controls"><button aria-label="Previous slide" disabled={presentIndex === 0} onClick={() => setPresentIndex((i) => Math.max(0, i - 1))}><ArrowLeft size={17} /></button><span><strong>{presentPage.name}</strong> · {presentIndex + 1} / {presentationPages.length}</span><button aria-label="Next slide" onClick={() => {if(!advanceMotion())setPresentIndex((i) => Math.min(presentationPages.length - 1, i + 1));}}><ArrowRight size={17} /></button></div>
     </div>}
   </main>;
 }

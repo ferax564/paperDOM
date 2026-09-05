@@ -36,7 +36,7 @@ export function validateLibrary(value: unknown, validate: ElementValidator): str
     for (const [key, prop] of Object.entries(c.properties)) if (!safeKey(key) || !record(prop) || typeof prop.label !== 'string' || typeof prop.default !== 'string') return `Invalid property ${key}`;
     const nodeIds = new Set<string>();
     for (const e of c.elements) {
-      if (!record(e) || typeof e.id !== 'string' || nodeIds.has(e.id) || (typeof e.type !== 'string' || !['text','shape','ellipse','image','line','connector','plugin','table','chart'].includes(e.type))) return `Invalid primitive in ${c.id}`;
+      if (!record(e) || typeof e.id !== 'string' || nodeIds.has(e.id) || (typeof e.type !== 'string' || !['text','shape','ellipse','image','line','connector','plugin','table','chart','audio','video'].includes(e.type))) return `Invalid primitive in ${c.id}`;
       nodeIds.add(e.id);
     }
     for (const e of c.elements) { const error = validate(e, nodeIds, `component ${c.id}`); if (error) return error; }
@@ -113,6 +113,7 @@ export function instantiateTemplate(template: SlideTemplate, id: string): Canvas
   const page = structuredClone(template.page);
   const ids = new Map(page.elements.map((e, index) => [e.id, `${id}_node_${index}`]));
   page.id = id;
+  if(page.animations)page.animations=page.animations.map((cue,i)=>({...cue,id:`${id}_cue_${i}`,elementId:ids.get(cue.elementId)!}));
   for (const e of page.elements) { e.id = ids.get(e.id)!; for (const endpoint of [e.from,e.to]) if (endpoint?.elementId) endpoint.elementId = ids.get(endpoint.elementId)!; }
   return page;
 }
