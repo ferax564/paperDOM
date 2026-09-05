@@ -1,5 +1,6 @@
+import type { TableData, ChartData } from './presentation-tools.ts';
 import { validateLibrary, validateTheme, validateInstance, defaultTheme, type ComponentLibrary, type ComponentInstance, type Theme } from './component-library.ts';
-export type Kind = "text" | "shape" | "ellipse" | "connector" | "line" | "image" | "plugin" | "component";
+export type Kind = "text" | "shape" | "ellipse" | "connector" | "line" | "image" | "plugin" | "component" | "table" | "chart";
 export type Anchor = "top" | "right" | "bottom" | "left";
 export type Endpoint = { elementId?: string; anchor?: Anchor; x?: number; y?: number };
 export type Frame = { x: number; y: number; w: number; h: number; rotation: number };
@@ -48,12 +49,19 @@ export type CanvasElement = {
   to?: Endpoint;
   content?: ElementContent;
   component?: ComponentInstance;
+  table?: TableData;
+  chart?: ChartData;
+  groupId?: string;
+  aspectLocked?: boolean;
 };
 
 export type CanvasPage = {
   id: string;
   name: string;
   notes?: string;
+  hidden?: boolean;
+  transition?: "none" | "fade" | "slide";
+  advanceSeconds?: number;
   size: { width: number; height: number };
   background: { color: string };
   elements: CanvasElement[];
@@ -76,7 +84,7 @@ export type AgentOperation =
   | { op: "setLibrary"; library: ComponentLibrary }
   | { op: "setTheme"; theme: Theme }
   | { op: "createPage"; page: CanvasPage; index?: number }
-  | { op: "patchPage"; pageId: string; patch: { name?: string; notes?: string; background?: { color: string } } }
+  | { op: "patchPage"; pageId: string; patch: Partial<Pick<CanvasPage,"name"|"notes"|"background"|"size"|"hidden"|"transition"|"advanceSeconds">> }
   | { op: "deletePage"; pageId: string }
   | { op: "reorderPages"; pageIds: string[] }
   | { op: "createElement"; pageId?: string; element: CanvasElement }
@@ -139,7 +147,7 @@ const DEFAULT_STYLE: ElementStyle = {
   verticalAlign: "middle",
   padding: 14,
 };
-const KINDS = new Set<Kind>(["text", "shape", "ellipse", "connector", "line", "image", "plugin", "component"]);
+const KINDS = new Set<Kind>(["text", "shape", "ellipse", "connector", "line", "image", "plugin", "component", "table", "chart"]);
 const ANCHORS = new Set<Anchor>(["top", "right", "bottom", "left"]);
 const TEXT_ALIGNS = new Set(["left", "center", "right"]);
 const VERTICAL_ALIGNS = new Set(["top", "middle", "bottom"]);
@@ -212,6 +220,18 @@ function validateElement(element: unknown, elementIds: Set<string>, path: string
   if (element.locked !== undefined && typeof element.locked !== "boolean") return `${path}.locked must be boolean`;
   if (element.hidden !== undefined && typeof element.hidden !== "boolean") return `${path}.hidden must be boolean`;
 
+  if (element.groupId !== undefined && !isNonEmptyString(element.groupId)) return `${path}.groupId must be a nonempty string`;
+  if (element.aspectLocked !== undefined && typeof element.aspectLocked !== 'boolean') return `${path}.aspectLocked must be boolean`;
+  if (element.type === 'table') {
+    const t=element.table;
+    if (!isRecord(t)||typeof t.header!=='boolean'||!Array.isArray(t.rows)||!t.rows.length||t.rows.length>50) return `${path}.table requires 1–50 rows`;
+    const width=Array.isArray(t.rows[0])?t.rows[0].length:0;
+    if(!width||width>20||t.rows.some(row=>!Array.isArray(row)||row.length!==width||row.some(cell=>typeof cell!=='string')))return `${path}.table requires rectangular string cells (1–20 columns)`;
+  }
+  if(element.type==='chart') {
+    const c=element.chart;
+    if(!isRecord(c)||(c.kind!=='bar'&&c.kind!=='line')||typeof c.title!=='string'||!Array.isArray(c.labels)||!Array.isArray(c.values)||!c.labels.length||c.labels.length>50||c.values.length!==c.labels.length||c.labels.some(v=>typeof v!=='string')||c.values.some(v=>!isFiniteNumber(v)))return `${path}.chart requires matching labels and finite numeric values`;
+  }
   if (!isRecord(element.frame)) return `${path}.frame must be an object`;
   const frame = element.frame;
   for (const key of ["x", "y", "w", "h", "rotation"] as const) {
@@ -311,6 +331,9 @@ function validationError(value: unknown): string | null {
     if (pageIds.has(page.id)) return `${path}.id is duplicated`;
     pageIds.add(page.id);
     if (typeof page.name !== "string") return `${path}.name must be a string`;
+    if (page.hidden !== undefined && typeof page.hidden !== 'boolean') return `${path}.hidden must be boolean`;
+    if (page.transition !== undefined && !['none','fade','slide'].includes(page.transition as string)) return `${path}.transition is invalid`;
+    if (page.advanceSeconds !== undefined && (!isFiniteNumber(page.advanceSeconds)||page.advanceSeconds<0||page.advanceSeconds>3600)) return `${path}.advanceSeconds must be 0–3600`;
     if (page.notes !== undefined && typeof page.notes !== "string") return `${path}.notes must be a string`;
     if (!isRecord(page.size) || !isFiniteNumber(page.size.width) || !isFiniteNumber(page.size.height) || page.size.width <= 0 || page.size.height <= 0) {
       return `${path}.size must contain positive finite dimensions`;
@@ -334,6 +357,7 @@ function validationError(value: unknown): string | null {
       if (instanceError) return instanceError;
     }
   }
+  if(value.pages.every(p=>isRecord(p)&&p.hidden===true))return "Keep at least one slide visible";
   return null;
 }
 
@@ -456,8 +480,8 @@ export function applyDocumentTransaction(
       continue;
     }
     if (operation.op === "patchPage") {
-      if (!isRecord(operation.patch) || Object.keys(operation.patch).some((key) => !["name", "notes", "background"].includes(key))) {
-        return transactionError(document, "invalid_operation", "patchPage supports name, notes, and background", index);
+      if (!isRecord(operation.patch) || Object.keys(operation.patch).some((key) => !["name", "notes", "background", "size", "hidden", "transition", "advanceSeconds"].includes(key))) {
+        return transactionError(document, "invalid_operation", "patchPage supports name, notes, background, size, hidden, transition, and advanceSeconds", index);
       }
       Object.assign(page, structuredClone(operation.patch));
       continue;

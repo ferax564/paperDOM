@@ -141,3 +141,9 @@ window.paperdom.transaction({
 PaperDOM is open-source software licensed under the [MIT License](LICENSE).
 
 Contributions are welcome. Read [CONTRIBUTING.md](CONTRIBUTING.md) and [SECURITY.md](SECURITY.md) before submitting a change or vulnerability report.
+
+### Presentation tools and compatibility
+
+Open **Tools** for slide sizes, speaker notes, transitions, timed playback, object groups/layers, tables/charts, find-and-replace and exports. PowerPoint export produces editable supported objects; standalone HTML produces an offline deck; Print / Save PDF uses the browser print dialog.
+
+PaperDOM does **not** yet match all PowerPoint functionality. PPTX import, masters, rich text runs, advanced animation, audio/video and simultaneous collaboration are still missing. See the [detailed capability and test matrix](docs/POWERPOINT-COMPATIBILITY.md) for implemented scope, export fidelity limits and outstanding testing.

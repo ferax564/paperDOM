@@ -36,7 +36,7 @@ export function validateLibrary(value: unknown, validate: ElementValidator): str
     for (const [key, prop] of Object.entries(c.properties)) if (!safeKey(key) || !record(prop) || typeof prop.label !== 'string' || typeof prop.default !== 'string') return `Invalid property ${key}`;
     const nodeIds = new Set<string>();
     for (const e of c.elements) {
-      if (!record(e) || typeof e.id !== 'string' || nodeIds.has(e.id) || (typeof e.type !== 'string' || !['text','shape','ellipse','image','line','connector','plugin'].includes(e.type))) return `Invalid primitive in ${c.id}`;
+      if (!record(e) || typeof e.id !== 'string' || nodeIds.has(e.id) || (typeof e.type !== 'string' || !['text','shape','ellipse','image','line','connector','plugin','table','chart'].includes(e.type))) return `Invalid primitive in ${c.id}`;
       nodeIds.add(e.id);
     }
     for (const e of c.elements) { const error = validate(e, nodeIds, `component ${c.id}`); if (error) return error; }
@@ -52,7 +52,7 @@ export function validateLibrary(value: unknown, validate: ElementValidator): str
     if (!record(t) || typeof t.id !== 'string' || !safeKey(t.id) || templateIds.has(t.id) || typeof t.name !== 'string' || typeof t.description !== 'string' || !record(t.page)) return 'Invalid template';
     templateIds.add(t.id);
     const p = t.page;
-    if (typeof p.id !== 'string' || typeof p.name !== 'string' || (p.notes !== undefined && typeof p.notes !== 'string') || !record(p.size) || !positive(p.size.width) || !positive(p.size.height) || !record(p.background) || typeof p.background.color !== 'string' || /\b(?:url|image-set)\s*\(/i.test(p.background.color) || !Array.isArray(p.elements) || p.elements.length > 500) return `Invalid template page ${t.id}`;
+    if (typeof p.id !== 'string' || typeof p.name !== 'string' || (p.notes !== undefined && typeof p.notes !== 'string') || (p.hidden !== undefined && typeof p.hidden !== 'boolean') || (p.transition !== undefined && !['none','fade','slide'].includes(String(p.transition))) || (p.advanceSeconds !== undefined && (typeof p.advanceSeconds !== 'number' || !Number.isFinite(p.advanceSeconds) || p.advanceSeconds<0 || p.advanceSeconds>3600)) || !record(p.size) || !positive(p.size.width) || !positive(p.size.height) || !record(p.background) || typeof p.background.color !== 'string' || /\b(?:url|image-set)\s*\(/i.test(p.background.color) || !Array.isArray(p.elements) || p.elements.length > 500) return `Invalid template page ${t.id}`;
     const elements = p.elements as CanvasElement[];
     const nodeIds = new Set(elements.map(e => record(e) && typeof e.id === 'string' ? e.id : ''));
     if (nodeIds.has('') || nodeIds.size !== elements.length) return 'Template element IDs must be unique';
