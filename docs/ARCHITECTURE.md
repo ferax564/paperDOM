@@ -36,3 +36,11 @@ The current text model stores one plain-text string and one style per object. It
 ## Optional starter surfaces
 
 `app/chatgpt-auth.ts`, `db/`, `drizzle.config.ts`, and `examples/d1/` are inactive platform examples. The current editor does not require authentication or D1. They remain as documented integration starting points and are excluded from the active product path.
+
+## Headless agent workflow
+
+`app/agent-api.ts` adds a React-free adapter over the existing pure transaction kernel: capability discovery, outline/query/scene reads, value-based diffs, deterministic dry runs, and advisory document checks. `scripts/paperdom.mjs` uses the same modules from Node. Browser API reads consult the current document reference instead of a stale render closure.
+
+`app/agent-review.tsx` owns the proposal dialog, source editing, validation errors, page previews, and acceptance state. It reuses `StaticPage` from the presenter, with unique SVG marker ids for simultaneous before/after rendering. Acceptance checks both revision and document values; it does not recompute a preview silently on newer content.
+
+The editor's page add/duplicate/delete/reorder actions now share agent transactions. Agent commits synchronously record history so multiple calls in a single event retain independent undo states. Existing object gestures and inspector edits still use their local callbacks; this is an incremental command-engine integration, not a completed editor-wide command bus. Attribution and pending proposals remain in memory. There is no new backend, cloud persistence, authentication, collaboration, or deployment in this change.

@@ -101,3 +101,7 @@ The top-level `plugins` array declares plugin IDs and versions. The prototype in
 The parser fills style properties introduced during the 0.1 prototype, migrates the legacy demo ID, and then validates the complete graph. Unsupported versions, duplicate IDs, dangling endpoints, unsafe image URL schemes, resource-loading paint values, invalid enums, and non-finite numeric values are rejected.
 
 Version 0.1 has no formal JSON Schema file yet. `app/document-model.ts` is the executable specification.
+
+## Speaker notes
+
+Pages may include `notes: "Plain-text speaker notes"`. This optional addition does not change version 0.1 and existing documents require no migration. Notes survive parsing and JSON export and are available in outlines and proposal previews. They are not drawn on the presentation canvas.

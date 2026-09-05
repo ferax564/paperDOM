@@ -1,90 +1,102 @@
-# Browser agent API
+# Agent API and headless CLI
 
-PaperDOM exposes `window.paperdom`. `window.canvasdoc` is a temporary compatibility alias and may be removed in a future major version.
+The browser exposes `window.paperdom` (`window.canvasdoc` remains a compatibility alias). The same transaction kernel and read/preview functions run in Node without React, a browser, or a server. Document format **0.1** remains backward-compatible; capability discovery reports API **0.2**.
 
-## Read methods
+## Read and discover
 
 ```js
-const document = window.paperdom.getDocument();
-const scene = window.paperdom.sceneSummary();
+const api = window.paperdom;
+api.capabilities();
+const document = api.getDocument();
+api.getDocumentOutline(); // ordered page ids, names, sizes, notes, counts
+api.getPage("page_architecture"); // clone or null
+api.queryNodes({ type: "text", text: "architecture", hidden: false });
+api.sceneSummary(); // current page, visible elements, arrows, plugins
+api.audit();
 ```
 
-`getDocument()` returns a structured clone. Mutating it does not change the editor. `sceneSummary()` returns the active page, visible object bounds and text, connectors, and plugin declarations.
+Reads return isolated copies. Queries AND optional `pageId`, `ids`, `type`, `text`, `hidden`, and `locked` filters. `text` is a case-insensitive literal substring over names and string content. Hidden nodes are included unless filtered; scene summaries exclude them. Retained API handles read the latest document after synchronous transactions.
+
+## Preview and review
+
+```js
+const proposal = {
+  expectedRevision: api.getDocument().revision,
+  description: "Clarify the architecture heading",
+  actor: { id: "design-assistant", name: "Design assistant", type: "agent" },
+  operations: [{
+    op: "replaceText", pageId: "page_architecture",
+    elementId: "title_arch", text: "How the system works"
+  }]
+};
+const preview = api.preview(proposal); // does not mutate editor state
+api.propose(proposal); // opens the human review dialog; does not commit
+```
+
+A successful preview contains `before`, candidate `document`, revision-bound `payload`, `defaultPageId`, `previousRevision`, `revision`, `changes`, and `warnings`. Changes identify created/updated/deleted/moved pages and elements, including top-level changed fields. The diff compares values, independently of JSON property order. Warnings cover missing image alt text and rotated object bounds outside the page; they are advisory, not a complete accessibility or text-overflow audit. They apply to the entire candidate document, so existing issues may also appear.
+
+The **Review changes** toolbar button also accepts transaction JSON. The dialog shows before/after pages, speaker notes, attribution, differences, and warnings. Accept commits the complete transaction as one undo step. Reject/close changes nothing. Editing the proposal discards its preview. If the document changes after preview—including a draft edit before its revision increments—acceptance is blocked. Read the latest document, revise the proposal, and preview again. Page targets are captured at preview time.
+
+Only one proposal is displayed at a time; a subsequent `propose` replaces it. Proposals and attribution are held in memory, not persisted in an audit log. Actor identity is caller-provided, not authenticated. This review workflow is optional: `transaction()` remains a direct, trusted browser integration, not an authorization boundary.
 
 ## Atomic transactions
 
 ```js
-const result = window.paperdom.transaction({
-  expectedRevision: 7,
-  operations: [
-    {
-      op: "replaceText",
-      pageId: "page_1",
-      elementId: "title_1",
-      text: "Updated by an agent"
-    }
-  ]
-});
+const result = api.transaction(proposal);
 ```
 
-All operations are applied to a clone and the complete document is validated before commit. If any operation fails, none are committed.
-
-Successful result:
+Operations execute on a clone and the complete document is validated before commit. Any failure rolls back the entire transaction. Success advances one revision and returns:
 
 ```json
 {
   "ok": true,
   "previousRevision": 7,
   "revision": 8,
-  "changedElementIds": ["title_1"]
+  "changedElementIds": ["title_arch"],
+  "changedPageIds": ["page_architecture"]
 }
 ```
 
-Failed result:
-
-```json
-{
-  "ok": false,
-  "error": "revision_conflict",
-  "revision": 8,
-  "message": "Expected revision 7, current revision is 8"
-}
-```
-
-Error codes are `revision_conflict`, `invalid_transaction`, `invalid_operation`, and `invalid_document`. Operation failures may include `operationIndex`.
+Failures return `ok: false`, `error`, `revision`, `message`, and optionally `operationIndex`. Codes are `revision_conflict`, `invalid_transaction`, `invalid_operation`, and `invalid_document`. Browser commits during active pointer/text editing return `invalid_transaction`; finish the edit and retry. Always pass `expectedRevision`; after a conflict, read fresh state rather than blindly resubmitting. Sequential agent commits retain separate undo steps.
 
 ## Operations
 
-### `replaceText`
+| Operation | Fields and behavior |
+| --- | --- |
+| `replaceText` | `elementId`, `text`, optional `pageId`. Updates text and name of text/shape/ellipse elements. |
+| `patchElement` | `elementId`, `patch`, optional `pageId`. Deep-merges frame/style/content; preserves id. |
+| `createElement` | Complete valid `element`, optional `pageId`. Element ids must be globally unique. |
+| `deleteElements` | `ids`, optional `pageId`. Removes existing elements and attached connectors atomically. |
+| `createPage` | Complete `page`, optional zero-based `index` (default append). Page and element ids must be unique. |
+| `patchPage` | `pageId`, `patch` containing only `name`, `notes`, and/or `background: { color }`. Cannot replace ids/elements/dimensions. |
+| `deletePage` | `pageId`. Removes the page and its elements; cannot delete the last page. |
+| `reorderPages` | `pageIds` containing each existing page id exactly once. |
 
-Updates a `text`, `shape`, or `ellipse` element's plain text and display name.
+Create a page and add elements to its id in the same transaction. Use 1280 × 720 for the current editor canvas. Notes are optional plain text, retained in JSON and displayed in outline/review; a full presenter-notes view is not implemented. Omitting element-operation `pageId` targets the active browser page or the first CLI page.
 
-### `patchElement`
+## Headless TypeScript
 
-Merges top-level properties and deep-merges `frame`, `style`, and `content`.
+```ts
+import { parsePaperDOMDocument, applyDocumentTransaction } from "./app/document-model.ts";
+import { previewTransaction, getDocumentOutline, queryNodes, createAgentAPI } from "./app/agent-api.ts";
 
-```js
-{
-  op: "patchElement",
-  elementId: "title_1",
-  patch: {
-    frame: { x: 100 },
-    style: { color: "#ef4444", fontWeight: 700 }
-  }
-}
+const parsed = parsePaperDOMDocument(input);
+if (!parsed.ok) throw new Error(parsed.error);
+const preview = previewTransaction(parsed.document, proposal, parsed.document.pages[0].id,
+  "2026-09-05T10:00:00.000Z"); // explicit time makes output reproducible
 ```
 
-The element ID cannot be changed by a patch.
+`createAgentAPI({ getDocument, getPageId, commit, isBusy?, propose? })` provides an adapter for other hosts. `commit` must synchronously update the host's canonical document. The host owns persistence and history. This is a source module, not yet a published npm SDK, HTTP API, or MCP server.
 
-### `createElement`
+## CLI
 
-Adds one complete, valid element. IDs must be unique across the document. Use `getDocument()` to copy an existing element as a template when constructing styles.
+```bash
+npm run cli -- capabilities
+npm run cli -- validate deck.paperdom.json
+npm run cli -- outline deck.paperdom.json
+npm run cli -- query deck.paperdom.json query.json
+npm run cli -- preview deck.paperdom.json proposal.json
+npm run cli -- apply deck.paperdom.json proposal.json updated.paperdom.json
+```
 
-### `deleteElements`
-
-Deletes existing IDs from one page. Connectors attached to deleted elements are removed in the same transaction.
-
-## Concurrency guidance
-
-Always read the current revision, pass it as `expectedRevision`, and retry from a fresh document after `revision_conflict`. Do not blindly resubmit a patch against a newer scene.
-
+The CLI consumes UTF-8 JSON and emits JSON. Failed validation/transactions exit with code 1. `apply` creates a new output file exclusively and refuses to overwrite existing files, including its input. Preview never writes a document. Use `node --experimental-strip-types scripts/paperdom.mjs ...` directly for machine-readable stdout without npm's script banner. Node >=22.13 is required; no build or dependencies are needed for these headless commands.
