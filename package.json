@@ -27,7 +27,7 @@
     "lint": "bash scripts/sites-env.sh -- eslint . --ignore-pattern dist --ignore-pattern .next",
     "db:generate": "bash scripts/sites-env.sh -- drizzle-kit generate",
     "cli": "node --experimental-strip-types scripts/paperdom.mjs",
-    "test:unit": "node --experimental-strip-types --test tests/document-model.test.mjs tests/agent-api.test.mjs tests/cli.test.mjs tests/editor-geometry.test.mjs tests/text-formatting.test.mjs tests/auth-paths.test.mjs tests/component-library.test.mjs",
+    "test:unit": "node --experimental-strip-types --test tests/document-model.test.mjs tests/agent-api.test.mjs tests/cli.test.mjs tests/editor-geometry.test.mjs tests/text-formatting.test.mjs tests/auth-paths.test.mjs tests/component-library.test.mjs tests/presentation-tools.test.mjs tests/presentation-export.test.mjs",
     "test:browser": "playwright test",
     "examples:generate": "node --experimental-strip-types scripts/generate-examples.mjs"
   },
@@ -35,6 +35,7 @@
     "drizzle-orm": "0.45.2",
     "lucide-react": "^0.468.0",
     "next": "^16.3.1",
+    "pptxgenjs": "^4.0.1",
     "react": "^19.2.8",
     "react-dom": "^19.2.8"
   },
