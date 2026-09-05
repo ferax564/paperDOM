@@ -1,3 +1,5 @@
+import { readPowerPointTiming } from './pptx-timing.ts';
+import { retainPowerPointSource } from './pptx-source.ts';
 import JSZip from 'jszip';
 import { baseStyle } from './component-library.ts';
 import { parsePaperDOMDocument, type CanvasElement, type CanvasPage, type PaperDOMDocument } from './document-model.ts';
@@ -251,8 +253,9 @@ export async function importPowerPoint(buffer: ArrayBuffer, fileName = 'Presenta
             page.transition = first(transition, 'fade') ? 'fade' : first(transition, 'push') ? 'slide' : 'none';
             page.advanceSeconds = number(transition, 'advTm') / 1000;
         }
-        if (first(part, 'timing'))
-            warnings.add('Native PowerPoint object animation is not imported; rebuild it in Motion.');
+        const timing = readPowerPointTiming(part, page);
+        if (timing.cues.length) page.animations = timing.cues;
+        if (timing.unsupported) warnings.add('Some native timing is outside the editable animation subset. It remains intact in the original package when exported without edits.');
         pages.push(page);
     }
     if (!pages.length)
@@ -265,5 +268,7 @@ export async function importPowerPoint(buffer: ArrayBuffer, fileName = 'Presenta
     const parsed = parsePaperDOMDocument(document);
     if (!parsed.ok)
         throw new Error(`Imported document is invalid: ${parsed.error}`);
+    if (await retainPowerPointSource(parsed.document, buffer)) warnings.add('Original PowerPoint retained. Exporting without content changes returns the exact original file, including native layouts and animations. Editing regenerates the supported subset.');
+    else warnings.add('The original package exceeds the 8 MiB retention limit. Keep the original PPTX file for full native fidelity.');
     return { document: parsed.document, warnings: [...warnings] };
 }

@@ -1,4 +1,5 @@
 "use client";
+import { InlineText } from './inline-text';
 import {randomId} from './ids.ts';
 /* eslint-disable @next/next/no-img-element */
 
@@ -251,6 +252,8 @@ export default function Home() {
   const historyActionRef = useRef(false);
   const spaceToolRef = useRef<Tool | null>(null);
   const textEditorRefs = useRef(new Map<string, HTMLDivElement>());
+  const composingRef = useRef(false);
+  const onComposing = useCallback((active: boolean) => { composingRef.current = active; }, []);
   const newTextBoxRef = useRef<string | null>(null);
 
   const page = useMemo(() => doc.pages.find((p) => p.id === pageId) ?? doc.pages[0], [doc.pages, pageId]);
@@ -795,7 +798,7 @@ export default function Home() {
     setSelection(ids => ids.filter(id => active.elements.some(element => element.id === id)));
   }, []);
 
-  const cloud=useCloud(()=>documentRef.current,commitAgentDocument,()=>!!(gestureRef.current||editingId||richTextId||masterEditorId));
+  const cloud=useCloud(()=>documentRef.current,commitAgentDocument,()=>!!(gestureRef.current||composingRef.current||richTextId||masterEditorId));
 
   const getAgentAPI = useCallback(() => createAgentAPI({
     getDocument: () => documentRef.current,
@@ -866,12 +869,11 @@ export default function Home() {
       onPointerDown={(e) => beginElementGesture(e, item)} onDoubleClick={(e) => { e.stopPropagation(); if (!item.locked&&["text", "shape", "ellipse"].includes(item.type)) setEditingId(item.id); }}>
       {["audio","video"].includes(item.type)?<MediaView item={item}/>: ["table","chart"].includes(item.type) ? <DataView item={item}/> : item.type === "component" ? <ComponentView item={item} document={doc}/> : item.type === "plugin" ? <div className="kpi-card"><div className="kpi-icon" style={{ background: item.content?.accent ?? "#6d5dfc" }}><span /></div><div className="kpi-label">{item.content?.label}</div><div className="kpi-value">{item.content?.value}</div><div className="kpi-trend" style={{ color: item.content?.accent }}>↗ {item.content?.trend}</div></div>
         : item.type === "image" ? (item.content?.src ? <img src={item.content.src} alt={item.content.alt ?? ""} draggable={false} /> : <div className="image-placeholder"><ImageIcon size={46} /><span>Drop or paste an image</span></div>)
-        : <div
-          ref={(node) => { if (node) textEditorRefs.current.set(item.id, node); else textEditorRefs.current.delete(item.id); }}
+        : <InlineText item={item} editing={editing} onComposing={onComposing}
+          onText={text => { if (text !== item.content?.text) patchElement(item.id, {content: {...item.content, text}}); }}
+          register={(node) => { if (node) textEditorRefs.current.set(item.id, node); else textEditorRefs.current.delete(item.id); }}
           className="element-text"
           style={{ padding: item.style.padding ?? 12 }}
-          contentEditable={editing}
-          suppressContentEditableWarning
           role={editing ? "textbox" : undefined}
           aria-label={editing ? `Edit ${item.name}` : undefined}
           aria-multiline={editing || undefined}
@@ -898,10 +900,10 @@ export default function Home() {
           onBlur={(e) => {
             if (!editing) return;
             const text = e.currentTarget.innerText ?? "";
-            if (text !== (item.content?.text ?? "")) patchElement(item.id, { name: text.trim().slice(0, 28) || "Text box", content: { ...item.content, text } });
+            if (text !== (item.content?.text ?? "")) patchElement(item.id, { content: { ...item.content, text } });
             setEditingId(null);
           }}
-        ><RichText item={item}/></div>}
+        />}
       {isSelected && !editing && <><button className="rotate-handle" onPointerDown={(e) => beginRotate(e, item)} aria-label="Rotate" />{["nw", "n", "ne", "e", "se", "s", "sw", "w"].map((h) => <button key={h} className={`resize-handle handle-${h}`} onPointerDown={(e) => beginResize(e, item, h)} aria-label={`Resize ${h}`} />)}</>}
     </div>;
   };

@@ -27,7 +27,7 @@
     "lint": "bash scripts/sites-env.sh -- eslint . --ignore-pattern dist --ignore-pattern .next",
     "db:generate": "bash scripts/sites-env.sh -- drizzle-kit generate",
     "cli": "node --experimental-strip-types scripts/paperdom.mjs",
-    "test:unit": "node --experimental-strip-types --test tests/document-model.test.mjs tests/agent-api.test.mjs tests/cli.test.mjs tests/editor-geometry.test.mjs tests/text-formatting.test.mjs tests/auth-paths.test.mjs tests/component-library.test.mjs tests/presentation-tools.test.mjs tests/presentation-export.test.mjs tests/advanced-model.test.mjs tests/collaboration.test.mjs",
+    "test:unit": "node --experimental-strip-types --test tests/document-model.test.mjs tests/agent-api.test.mjs tests/cli.test.mjs tests/editor-geometry.test.mjs tests/text-formatting.test.mjs tests/auth-paths.test.mjs tests/component-library.test.mjs tests/presentation-tools.test.mjs tests/presentation-export.test.mjs tests/advanced-model.test.mjs tests/collaboration.test.mjs tests/text-merge.test.mjs tests/pptx-source.test.mjs tests/pptx-timing.test.mjs tests/native-render.test.mjs tests/hosted-verification.test.mjs",
     "test:browser": "playwright test",
     "examples:generate": "node --experimental-strip-types scripts/generate-examples.mjs"
   },

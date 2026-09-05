@@ -71,7 +71,7 @@ export function composePage(page: CanvasPage, document?: PaperDOMDocument): Canv
                 }
             } return e; }), ...page.elements] }; }
 export function cueFrames(cue: AnimationCue, opacity=1): Keyframe[] { switch (cue.effect) {
-    case 'appear': return [{ opacity: 0 }, { opacity }];
+    case 'appear': return [{ opacity }, { opacity }];
     case 'fade-in': return [{ opacity: 0 }, { opacity }];
     case 'fade-out': return [{ opacity }, { opacity: 0 }];
     case 'fly-in': return [{ translate: `${cue.dx ?? -120}px ${cue.dy ?? 0}px`, opacity: 0 }, { translate: '0px 0px', opacity }];

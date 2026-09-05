@@ -1,7 +1,9 @@
 import { parsePaperDOMDocument, type PaperDOMDocument } from './document-model.ts';
+import { mergeText, mergeTextRuns } from './text-merge.ts';
+import type { TextRun } from './advanced-model.ts';
 const equal = (a: unknown, b: unknown) => JSON.stringify(a) === JSON.stringify(b);
 const object = (v: unknown): v is Record<string, unknown> => !!v && typeof v === 'object' && !Array.isArray(v);
-/** Merge independent fields. Same-field edits and deletion-versus-edit require a decision. */
+/** Merge independent fields and character edits; overlapping replacements remain explicit conflicts. */
 export function mergeDocuments(base: PaperDOMDocument, local: PaperDOMDocument, remote: PaperDOMDocument) {
     const conflicts: string[] = [];
     function merge(b: unknown, l: unknown, r: unknown, path: string): unknown {
@@ -9,6 +11,18 @@ export function mergeDocuments(base: PaperDOMDocument, local: PaperDOMDocument, 
             return l;
         if (equal(b, l))
             return r;
+        if (typeof b === 'string' && typeof l === 'string' && typeof r === 'string' && /\/(text|notes)$/.test(path)) {
+            const text = mergeText(b, l, r);
+            if (text !== null) return text;
+        }
+        if (object(b) && object(l) && object(r) && object(b.content) && object(l.content) && object(r.content) && [b, l, r].some(v => v.runs !== undefined)) {
+            const runs = (v: Record<string, unknown>) => (v.runs ?? [{ text: (v.content as Record<string, unknown>).text ?? '' }]) as TextRun[];
+            const merged = mergeTextRuns(runs(b), runs(l), runs(r));
+            if (!merged) { conflicts.push(`${path}/runs`); return l; }
+            const clean = (v: Record<string, unknown>) => ({ ...v, runs: undefined, content: { ...v.content as object, text: '' } });
+            const result = merge(clean(b), clean(l), clean(r), path) as Record<string, unknown>;
+            return { ...result, runs: merged, content: { ...result.content as object, text: merged.map(r => r.text).join('') } };
+        }
         if (object(b) && object(l) && object(r))
             return Object.fromEntries([...new Set([...Object.keys(b), ...Object.keys(l), ...Object.keys(r)])].map(k => [k, merge(b[k], l[k], r[k], `${path}/${k}`)]));
         if (Array.isArray(b) && Array.isArray(l) && Array.isArray(r) && [...b, ...l, ...r].every(v => object(v) && typeof v.id === 'string')) {
