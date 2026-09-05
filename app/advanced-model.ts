@@ -70,12 +70,12 @@ export function composePage(page: CanvasPage, document?: PaperDOMDocument): Canv
                     p.y = (p.y ?? 0) * sy;
                 }
             } return e; }), ...page.elements] }; }
-export function cueFrames(cue: AnimationCue): Keyframe[] { switch (cue.effect) {
-    case 'appear': return [{ opacity: 0 }, { opacity: 1 }];
-    case 'fade-in': return [{ opacity: 0 }, { opacity: 1 }];
-    case 'fade-out': return [{ opacity: 1 }, { opacity: 0 }];
-    case 'fly-in': return [{ translate: `${cue.dx ?? -120}px ${cue.dy ?? 0}px`, opacity: 0 }, { translate: '0px 0px', opacity: 1 }];
-    case 'zoom': return [{ scale: .2, opacity: 0 }, { scale: 1, opacity: 1 }];
+export function cueFrames(cue: AnimationCue, opacity=1): Keyframe[] { switch (cue.effect) {
+    case 'appear': return [{ opacity: 0 }, { opacity }];
+    case 'fade-in': return [{ opacity: 0 }, { opacity }];
+    case 'fade-out': return [{ opacity }, { opacity: 0 }];
+    case 'fly-in': return [{ translate: `${cue.dx ?? -120}px ${cue.dy ?? 0}px`, opacity: 0 }, { translate: '0px 0px', opacity }];
+    case 'zoom': return [{ scale: .2, opacity: 0 }, { scale: 1, opacity }];
     case 'spin': return [{ rotate: '0deg' }, { rotate: '360deg' }];
     case 'pulse': return [{ scale: 1 }, { scale: 1.12 }, { scale: 1 }];
     case 'move': return [{ translate: '0px 0px' }, { translate: `${cue.dx ?? 100}px ${cue.dy ?? 0}px` }];

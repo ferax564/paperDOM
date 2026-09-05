@@ -10,9 +10,9 @@ export function useMotion(page: CanvasPage, presenting: boolean) {
         const target = root.current?.querySelector<HTMLElement>(`[data-element-id="${CSS.escape(cue.elementId)}"]`);
         if (!target)
             continue;
-        const animation = target.animate(cueFrames(cue), { duration: reduce ? 1 : cue.duration * 1000, delay: reduce ? 0 : at * 1000, fill: 'forwards', easing: 'ease-in-out' });
+        const animation = target.animate(cueFrames(cue,page.elements.find(e=>e.id===cue.elementId)?.style.opacity??1), { duration: reduce ? 1 : cue.duration * 1000, delay: reduce ? 0 : at * 1000, fill: 'forwards', easing: 'ease-in-out' });
         running.current.push(animation);
-    } }, []);
+    } }, [page.elements]);
     useEffect(() => {
         cursor.current = 0;
         const targets: HTMLElement[] = [];

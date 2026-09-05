@@ -21,7 +21,7 @@ No new runtime dependency was added. The implementation uses the existing schema
 
 ## Verification
 
-- Local production build, lint, typecheck and 120 Node/CLI/artifact/export/database tests pass.
+- Local production build, lint, typecheck and 121 Node/CLI/artifact/export/database tests pass.
 - GitHub CI also runs the Chromium suite, including range formatting, linked master updates, all eight effects, PPTX import, corrupt-file recovery, real WAV playback and conflict handling.
 - Server tests use real SQLite statements with an in-memory R2 adapter. The client collaboration browser test uses intercepted HTTP responses; this is not a multi-user test on the hosted service.
 - Native Microsoft PowerPoint rendering/playback, Firefox/Safari and assistive technology remain **unverified**.
