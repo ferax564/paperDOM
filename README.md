@@ -8,7 +8,7 @@ PaperDOM combines freeform PowerPoint-style editing with a structured, machine-r
 
 [Open the live editor](https://canvasdoc-editor.frx.chatgpt.site)
 
-> PaperDOM is an early working prototype. The editor is usable today, while collaboration, richer inline text ranges, and the plugin SDK are still evolving.
+> PaperDOM is an early working prototype. The editor is usable today, with bounded PowerPoint compatibility and an evolving plugin SDK.
 
 [Architecture](docs/ARCHITECTURE.md) · [Document format](docs/DOCUMENT_FORMAT.md) · [Agent API](docs/AGENT_API.md) · [Testing status](docs/TESTING.md) · [Project audit](docs/PROJECT_AUDIT.md)
 
@@ -128,13 +128,13 @@ window.paperdom.transaction({
 
 ## Roadmap
 
-- Inline range-level rich text
+- Full paragraph typography, scripts, and native PowerPoint text fidelity
 - Auto-fit and overflow strategies for text boxes
-- Reusable master layouts and themes
-- Tables, charts, media, and richer plugin objects
-- Comments, multiplayer collaboration, and revision history
+- Native placeholder/layout authoring and theme inheritance
+- Broader chart/table types and native media settings
+- Comments, character-level coauthoring, and revision-history UI
 - Public plugin SDK and schema registry
-- Standalone HTML export
+- Native PowerPoint rendering verification
 
 ## License
 
@@ -146,4 +146,6 @@ Contributions are welcome. Read [CONTRIBUTING.md](CONTRIBUTING.md) and [SECURITY
 
 Open **Tools** for slide sizes, speaker notes, transitions, timed playback, object groups/layers, tables/charts, find-and-replace and exports. PowerPoint export produces editable supported objects; standalone HTML produces an offline deck; Print / Save PDF uses the browser print dialog.
 
-PaperDOM does **not** yet match all PowerPoint functionality. PPTX import, masters, rich text runs, advanced animation, audio/video and simultaneous collaboration are still missing. See the [detailed capability and test matrix](docs/POWERPOINT-COMPATIBILITY.md) for implemented scope, export fidelity limits and outstanding testing.
+PaperDOM does **not** yet match all PowerPoint functionality. It now includes PPTX import, linked masters, mixed text runs and hyperlinks, eight sequenced animation effects, audio/video controls, and authenticated shared editing. Native PowerPoint animation fidelity, complete placeholder/theme inheritance, character-level coauthoring and native rendering verification remain unfinished. See the [detailed capability and test matrix](docs/POWERPOINT-COMPATIBILITY.md) for implemented scope, export fidelity limits and outstanding testing.
+
+Try the [presentation lab](public/examples/presentation-lab.paperdom.json) through JSON import for mixed text, hyperlinks, linked masters and a click sequence. See [shared editing setup](docs/SHARED-EDITING.md) for collaborator access and conflict handling.

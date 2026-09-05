@@ -109,3 +109,13 @@ Pages may include `notes: "Plain-text speaker notes"`. This optional addition do
 ## Reusable library extension
 
 See the [component library contract](component-library.md) for embedded `library` and `theme` fields, the `component` element kind, `setLibrary` / `setTheme` transactions, and the component/template agent API (version 0.3).
+
+## Presentation extensions
+
+The optional `masters` array contains reusable pages. A slide links with `masterId`; `inheritBackground` opts into its background. Master content is composed behind slide objects without changing IDs in the source. `setMasters` updates definitions atomically.
+
+Text-bearing objects may include `runs: [{text, style?, link?}]`. Concatenated run text must equal `content.text`. Range formatting and text replacement preserve that invariant. Links accept HTTP(S) and mailto; run styles are a restricted font/emphasis/color subset.
+
+Audio/video objects require `media: {src, autoplay, loop, muted, start, end?, poster?, captions?}`. Pages may include `animations: [{id, elementId, effect, trigger, duration, delay, dx?, dy?}]`. Targets must exist on that page; deletion cleans up cues and templates remap them.
+
+See `app/advanced-model.ts` for effect names and sequencing, and the [compatibility matrix](POWERPOINT-COMPATIBILITY.md) for import/export limits.
