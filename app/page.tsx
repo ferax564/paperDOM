@@ -247,7 +247,7 @@ export default function Home() {
   const panRef = useRef<{ x: number; y: number; left: number; top: number } | null>(null);
   const committedRef = useRef<PaperDOMDocument>(initialDocument);
   const documentRef = useRef<PaperDOMDocument>(initialDocument);
-  const agentContextRef = useRef<{ pageId: string; editingId: string | null }>({ pageId: initialDocument.pages[0].id, editingId: null });
+  const agentContextRef = useRef<{ pageId: string; editingId: string | null; modal:boolean }>({ pageId: initialDocument.pages[0].id, editingId: null,modal:false });
   const historyActionRef = useRef(false);
   const spaceToolRef = useRef<Tool | null>(null);
   const textEditorRefs = useRef(new Map<string, HTMLDivElement>());
@@ -326,8 +326,8 @@ export default function Home() {
 
   useEffect(() => {
     documentRef.current = doc;
-    agentContextRef.current = { pageId: page.id, editingId };
-  }, [doc, page.id, editingId]);
+    agentContextRef.current = { pageId: page.id, editingId,modal:!!(richTextId||masterEditorId||importReport||cloudOpen||presenting) };
+  }, [doc, page.id, editingId,richTextId,masterEditorId,importReport,cloudOpen,presenting]);
 
   useEffect(() => {
     if (historyActionRef.current) {
@@ -732,6 +732,7 @@ export default function Home() {
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
       const target = event.target as HTMLElement | null;
+      if(richTextId||masterEditorId||importReport||cloudOpen){if(event.key==='Escape'){setRichTextId(null);setMasterEditorId(null);setImportReport(null);setCloudOpen(false);}return;}
       if(presenting){
         if(event.key==='Escape'){setPresenting(false);setBlackout(false);}
         else if(['ArrowRight','ArrowDown','PageDown',' '].includes(event.key)){event.preventDefault();if(!advanceMotion())setPresentIndex(i=>Math.min(presentationPages.length-1,i+1));setBlackout(false);}
@@ -779,7 +780,7 @@ export default function Home() {
     };
     window.addEventListener("keydown", onKeyDown); window.addEventListener("keyup", onKeyUp);
     return () => { window.removeEventListener("keydown", onKeyDown); window.removeEventListener("keyup", onKeyUp); };
-  }, [deleteSelection, duplicateSelection, pageId, patchPage, patchTextStyle, presenting, redo, selectedOne, selection, tool, undo,presentationPages.length,page.elements,copySelection,pasteSelection,advanceMotion]);
+  }, [deleteSelection, duplicateSelection, pageId, patchPage, patchTextStyle, presenting, redo, selectedOne, selection, tool, undo,presentationPages.length,page.elements,copySelection,pasteSelection,advanceMotion,richTextId,masterEditorId,importReport,cloudOpen]);
 
   const commitAgentDocument = useCallback((next: PaperDOMDocument) => {
     // Record each agent transaction synchronously, including back-to-back calls.
@@ -801,7 +802,7 @@ export default function Home() {
     getPageId: () => documentRef.current.pages.some((page) => page.id === agentContextRef.current.pageId)
       ? agentContextRef.current.pageId : documentRef.current.pages[0].id,
     commit: commitAgentDocument,
-    isBusy: () => Boolean(gestureRef.current || agentContextRef.current.editingId),
+    isBusy: () => Boolean(gestureRef.current || agentContextRef.current.editingId || agentContextRef.current.modal),
     propose: (preview) => setReview((current) => ({ key: (current?.key ?? 0) + 1, preview })),
   }), [commitAgentDocument]);
 
@@ -849,6 +850,7 @@ export default function Home() {
     else if(action==='group'||action==='ungroup'){const groupId=action==='group'?uid('group'):undefined;if(action==='group'&&selected.length<2)throw new Error('Select at least two objects.');requireSuccess(getAgentAPI().transaction({operations:selected.filter(e=>!e.locked).map(e=>({op:'patchElement',elementId:e.id,patch:{groupId}}))}));}
     else if(action==='previousPage'||action==='nextPage'){const ids=doc.pages.map(p=>p.id),i=ids.indexOf(page.id),j=clamp(i+(action==='previousPage'?-1:1),0,ids.length-1);[ids[i],ids[j]]=[ids[j],ids[i]];requireSuccess(getAgentAPI().transaction({operations:[{op:'reorderPages',pageIds:ids}]}));}
     else if(action==='json')exportJson();else if(action==='editJson')openJson();else if(action==='inspector'){setToolsOpen(false);setMobileInspector(v=>!v);}
+    else if(action==='shared')setCloudOpen(true);
     else if(action==='importPptx')pptxInputRef.current?.click();
     else if(action==='media')mediaInputRef.current?.click();
     else if(action==='editMaster')setMasterEditorId(page.masterId??null);
@@ -908,7 +910,7 @@ export default function Home() {
     <header className="topbar" inert={presenting}>
       <div className="brand-block"><div className="brand-mark">P</div><div className="brand-name">PaperDOM</div><div className="workspace-badge">Workspace</div></div>
       <div className="document-title-wrap"><input className="document-title" value={doc.title} onFocus={(e) => { titleBeforeEditRef.current = e.currentTarget.value; }} onChange={(e) => setDoc((d) => ({ ...d, title: e.target.value }))} onBlur={() => setDoc((d) => d.title === titleBeforeEditRef.current ? d : ({ ...d, revision: d.revision + 1, metadata: { ...d.metadata, updatedAt: new Date().toISOString() } }))} aria-label="Document title" /><div className="saved-state"><Cloud size={13} /><Check size={12} /> {saveLabel}</div></div>
-      <div className="top-actions"><button className="quiet-button" onClick={()=>setCloudOpen(true)}><Cloud size={15}/> Shared</button><button className="quiet-button" aria-pressed={toolsOpen} onClick={()=>setToolsOpen(v=>!v)}>Tools</button><button className="library-open-button" onClick={()=>setLibraryOpen(true)}><Puzzle size={16}/> Library</button><button className="icon-button" title="Undo" disabled={!past.length} onClick={undo}><Undo2 size={17} /></button><button className="icon-button" title="Redo" disabled={!future.length} onClick={redo}><Redo2 size={17} /></button><span className="top-divider" /><button className="quiet-button" onClick={() => { setPresentIndex(Math.max(0,presentationPages.findIndex((p) => p.id === page.id))); setPresenting(true); }}><Eye size={15} /> Preview</button><button className="quiet-button" onClick={() => setReview({ key: Date.now() })}><Check size={15} /> Review changes</button><button className="quiet-button" onClick={openJson}><Braces size={15} /> JSON</button><button className="export-button" onClick={exportJson}><Share2 size={15} /> Export JSON <ChevronDown size={14} /></button><button className="present-button" onClick={() => { setPresentIndex(Math.max(0,presentationPages.findIndex((p) => p.id === page.id))); setPresenting(true); }}><Play size={15} fill="currentColor" /> Present</button><div className="avatar" aria-label="PaperDOM workspace">PD</div></div>
+      <div className="top-actions"><button className="quiet-button" onClick={()=>setCloudOpen(true)}><Cloud size={15}/> Shared</button><button className="quiet-button tools-toggle" aria-pressed={toolsOpen} onClick={()=>setToolsOpen(v=>!v)}>Tools</button><button className="library-open-button" onClick={()=>setLibraryOpen(true)}><Puzzle size={16}/> Library</button><button className="icon-button" title="Undo" disabled={!past.length} onClick={undo}><Undo2 size={17} /></button><button className="icon-button" title="Redo" disabled={!future.length} onClick={redo}><Redo2 size={17} /></button><span className="top-divider" /><button className="quiet-button" onClick={() => { setPresentIndex(Math.max(0,presentationPages.findIndex((p) => p.id === page.id))); setPresenting(true); }}><Eye size={15} /> Preview</button><button className="quiet-button" onClick={() => setReview({ key: Date.now() })}><Check size={15} /> Review changes</button><button className="quiet-button" onClick={openJson}><Braces size={15} /> JSON</button><button className="export-button" onClick={exportJson}><Share2 size={15} /> Export JSON <ChevronDown size={14} /></button><button className="present-button" onClick={() => { setPresentIndex(Math.max(0,presentationPages.findIndex((p) => p.id === page.id))); setPresenting(true); }}><Play size={15} fill="currentColor" /> Present</button><div className="avatar" aria-label="PaperDOM workspace">PD</div></div>
     </header>
     {toolsOpen&&!presenting&&<EditorTools document={doc} page={page} selection={selection} onClose={()=>setToolsOpen(false)} onTransaction={operations=>requireSuccess(getAgentAPI().transaction({operations}))} onSelect={(pageId,ids)=>{setPageId(pageId);setSelection(ids);setTool('select');}} onAction={toolAction}/>}
     <div className="editor-main" inert={presenting}>
@@ -987,7 +989,7 @@ export default function Home() {
     <input ref={imageInputRef} className="hidden-input" type="file" accept="image/png,image/jpeg,image/webp,image/gif" onChange={(e) => { insertImageFile(e.target.files?.[0]); e.currentTarget.value = ""; }} />
     {cloudOpen&&<CloudPanel cloud={cloud} onClose={()=>setCloudOpen(false)}/>}
     {richTextId&&page.elements.find(e=>e.id===richTextId)&&<RichTextEditor key={richTextId} item={page.elements.find(e=>e.id===richTextId)!} onClose={()=>setRichTextId(null)} onSave={runs=>patchElement(richTextId,{runs,content:{...page.elements.find(e=>e.id===richTextId)!.content,text:runs.map(r=>r.text).join('')}})}/>}
-    {masterEditorId&&doc.masters?.find(m=>m.id===masterEditorId)&&<MasterEditor key={masterEditorId} master={doc.masters.find(m=>m.id===masterEditorId)!} onClose={()=>setMasterEditorId(null)} onSave={master=>requireSuccess(getAgentAPI().transaction({operations:[{op:'setMasters',masters:doc.masters!.map(m=>m.id===master.id?master:m)}]}))}/>}
+    {masterEditorId&&doc.masters?.find(m=>m.id===masterEditorId)&&<MasterEditor key={masterEditorId} master={doc.masters.find(m=>m.id===masterEditorId)!} onClose={()=>setMasterEditorId(null)} onSave={master=>commitAgentDocument({...doc,revision:doc.revision+1,masters:doc.masters!.map(m=>m.id===master.id?master:m)})}/>}
     {importReport&&<div className="json-backdrop" role="dialog" aria-modal="true" aria-label="PowerPoint import report"><section className="rich-text-panel"><h2>PowerPoint import</h2><ul>{importReport.map((message,i)=><li key={i}>{message}</li>)}</ul><button onClick={()=>setImportReport(null)}>Close import report</button></section></div>}
     <input ref={pptxInputRef} className="hidden-input" aria-label="Import PPTX file" type="file" accept=".pptx" onChange={async e=>{const file=e.target.files?.[0];e.currentTarget.value='';if(!file)return;try{setSaveLabel('Importing PowerPoint…');const {importPowerPoint}=await import('./pptx-import');const result=await importPowerPoint(await file.arrayBuffer(),file.name);commitAgentDocument({...result.document,revision:doc.revision+1});setPageId(result.document.pages[0].id);setSelection([]);setImportReport(result.warnings.length?result.warnings:['Imported supported slide content. Review layout and fonts before presenting.']);}catch(error){setImportReport([error instanceof Error?error.message:'Import failed']);}}}/>
     <input ref={mediaInputRef} className="hidden-input" aria-label="Insert media file" type="file" accept="video/mp4,video/webm,audio/mpeg,audio/mp4,audio/wav,audio/ogg" onChange={async e=>{const file=e.target.files?.[0];e.currentTarget.value='';if(!file)return;if(file.size>25000000||! /^(video\/(mp4|webm)|audio\/(mpeg|mp4|wav|ogg))$/.test(file.type)){setSaveLabel('Choose supported media up to 25 MB');return;}const reader=new FileReader();reader.onload=()=>{const item=makeElement(uid('media'),file.type.startsWith('audio/')?'audio':'video',file.name,{x:80,y:100,w:Math.min(640,pageW-100),h:file.type.startsWith('audio/')?80:Math.min(360,pageH-120)},{z:Math.max(1,...page.elements.map(e=>e.z))+1,media:{src:String(reader.result),autoplay:false,loop:false,muted:false,start:0},content:{alt:file.name}});requireSuccess(getAgentAPI().transaction({operations:[{op:'createElement',element:item}]}));setSelection([item.id]);setToolsOpen(false);setMobileInspector(true);};reader.onerror=()=>setSaveLabel('Unable to read media');reader.readAsDataURL(file);}}/>

@@ -1,0 +1,272 @@
+{
+  "format": "paperdom",
+  "version": "0.1",
+  "id": "presentation_lab",
+  "title": "Presentation lab",
+  "revision": 0,
+  "plugins": [],
+  "metadata": {
+    "createdAt": "2026-09-05T00:00:00.000Z",
+    "updatedAt": "2026-09-05T00:00:00.000Z"
+  },
+  "masters": [
+    {
+      "id": "brand",
+      "name": "Shared footer",
+      "size": {
+        "width": 1280,
+        "height": 720
+      },
+      "background": {
+        "color": "#ffffff"
+      },
+      "elements": [
+        {
+          "id": "footer",
+          "type": "text",
+          "name": "PaperDOM · Reusable by design",
+          "frame": {
+            "x": 100,
+            "y": 640,
+            "w": 1080,
+            "h": 100,
+            "rotation": 0
+          },
+          "z": 2,
+          "style": {
+            "fill": "transparent",
+            "stroke": "transparent",
+            "strokeWidth": 0,
+            "radius": 0,
+            "opacity": 1,
+            "color": "#172033",
+            "fontSize": 16,
+            "fontWeight": 500,
+            "textAlign": "left",
+            "fontFamily": "Inter, ui-sans-serif, system-ui, sans-serif",
+            "fontStyle": "normal",
+            "underline": false,
+            "strike": false,
+            "lineHeight": 1.25,
+            "letterSpacing": 0,
+            "verticalAlign": "middle",
+            "padding": 0
+          },
+          "content": {
+            "text": "PaperDOM · Reusable by design"
+          }
+        }
+      ]
+    }
+  ],
+  "pages": [
+    {
+      "id": "intro",
+      "name": "Rich text and motion",
+      "size": {
+        "width": 1280,
+        "height": 720
+      },
+      "background": {
+        "color": "#ffffff"
+      },
+      "masterId": "brand",
+      "elements": [
+        {
+          "id": "title",
+          "type": "text",
+          "name": "Compose. Format. Animate.",
+          "frame": {
+            "x": 100,
+            "y": 100,
+            "w": 1080,
+            "h": 100,
+            "rotation": 0
+          },
+          "z": 2,
+          "style": {
+            "fill": "transparent",
+            "stroke": "transparent",
+            "strokeWidth": 0,
+            "radius": 0,
+            "opacity": 1,
+            "color": "#172033",
+            "fontSize": 48,
+            "fontWeight": 500,
+            "textAlign": "left",
+            "fontFamily": "Inter, ui-sans-serif, system-ui, sans-serif",
+            "fontStyle": "normal",
+            "underline": false,
+            "strike": false,
+            "lineHeight": 1.25,
+            "letterSpacing": 0,
+            "verticalAlign": "middle",
+            "padding": 0
+          },
+          "content": {
+            "text": "Compose. Format. Animate."
+          },
+          "runs": [
+            {
+              "text": "Compose. ",
+              "style": {
+                "fontWeight": 700
+              }
+            },
+            {
+              "text": "Format. ",
+              "style": {
+                "color": "#6d5dfc"
+              }
+            },
+            {
+              "text": "Animate.",
+              "link": "https://github.com/ferax564/paperDOM"
+            }
+          ]
+        },
+        {
+          "id": "body",
+          "type": "text",
+          "name": "One linked footer, mixed text styles, and a click sequence.",
+          "frame": {
+            "x": 100,
+            "y": 260,
+            "w": 1080,
+            "h": 100,
+            "rotation": 0
+          },
+          "z": 2,
+          "style": {
+            "fill": "transparent",
+            "stroke": "transparent",
+            "strokeWidth": 0,
+            "radius": 0,
+            "opacity": 1,
+            "color": "#172033",
+            "fontSize": 28,
+            "fontWeight": 500,
+            "textAlign": "left",
+            "fontFamily": "Inter, ui-sans-serif, system-ui, sans-serif",
+            "fontStyle": "normal",
+            "underline": false,
+            "strike": false,
+            "lineHeight": 1.25,
+            "letterSpacing": 0,
+            "verticalAlign": "middle",
+            "padding": 0
+          },
+          "content": {
+            "text": "One linked footer, mixed text styles, and a click sequence."
+          }
+        }
+      ],
+      "animations": [
+        {
+          "id": "reveal",
+          "elementId": "title",
+          "effect": "fade-in",
+          "trigger": "click",
+          "duration": 0.6,
+          "delay": 0
+        },
+        {
+          "id": "follow",
+          "elementId": "body",
+          "effect": "fly-in",
+          "trigger": "after-previous",
+          "duration": 0.5,
+          "delay": 0.2,
+          "dx": -100,
+          "dy": 0
+        }
+      ],
+      "notes": "Click once to reveal both objects in sequence. Edit the shared footer using Tools → Masters."
+    },
+    {
+      "id": "next",
+      "name": "Shared composition",
+      "size": {
+        "width": 1280,
+        "height": 720
+      },
+      "background": {
+        "color": "#ffffff"
+      },
+      "masterId": "brand",
+      "elements": [
+        {
+          "id": "next_title",
+          "type": "text",
+          "name": "Edit the master once.",
+          "frame": {
+            "x": 100,
+            "y": 100,
+            "w": 1080,
+            "h": 100,
+            "rotation": 0
+          },
+          "z": 2,
+          "style": {
+            "fill": "transparent",
+            "stroke": "transparent",
+            "strokeWidth": 0,
+            "radius": 0,
+            "opacity": 1,
+            "color": "#172033",
+            "fontSize": 48,
+            "fontWeight": 500,
+            "textAlign": "left",
+            "fontFamily": "Inter, ui-sans-serif, system-ui, sans-serif",
+            "fontStyle": "normal",
+            "underline": false,
+            "strike": false,
+            "lineHeight": 1.25,
+            "letterSpacing": 0,
+            "verticalAlign": "middle",
+            "padding": 0
+          },
+          "content": {
+            "text": "Edit the master once."
+          }
+        },
+        {
+          "id": "next_body",
+          "type": "text",
+          "name": "Both slides update. Save a shared copy to compose together.",
+          "frame": {
+            "x": 100,
+            "y": 260,
+            "w": 1080,
+            "h": 100,
+            "rotation": 0
+          },
+          "z": 2,
+          "style": {
+            "fill": "transparent",
+            "stroke": "transparent",
+            "strokeWidth": 0,
+            "radius": 0,
+            "opacity": 1,
+            "color": "#172033",
+            "fontSize": 28,
+            "fontWeight": 500,
+            "textAlign": "left",
+            "fontFamily": "Inter, ui-sans-serif, system-ui, sans-serif",
+            "fontStyle": "normal",
+            "underline": false,
+            "strike": false,
+            "lineHeight": 1.25,
+            "letterSpacing": 0,
+            "verticalAlign": "middle",
+            "padding": 0
+          },
+          "content": {
+            "text": "Both slides update. Save a shared copy to compose together."
+          }
+        }
+      ],
+      "notes": "Use Shared to save this deck. Other collaborators need Site access and document access."
+    }
+  ]
+}

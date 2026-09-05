@@ -1,3 +1,4 @@
+import {replaceRunText} from './advanced-model.ts';
 import type { CanvasElement, CanvasPage, ElementStyle, Frame } from './document-model.ts';
 
 export type Theme = { accent: string; surface: string; ink: string; muted: string; fontFamily: string };
@@ -98,9 +99,10 @@ export function resolveComponent(element: CanvasElement, library: ComponentLibra
     const child = structuredClone(raw);
     for (const token of definition.tokens.filter(t => t.elementId === child.id)) child.style[token.field] = theme[token.token];
     Object.assign(child.style, instance.overrides?.[child.id]);
-    for (const binding of definition.bindings.filter(b => b.elementId === child.id)) child.content = { ...child.content, [binding.field]: props[binding.property] };
+    for (const binding of definition.bindings.filter(b => b.elementId === child.id)) {child.content = { ...child.content, [binding.field]: props[binding.property] };if(binding.field==='text'&&child.runs)child.runs=replaceRunText(child.runs,props[binding.property]);}
     child.frame = { ...child.frame, x: child.frame.x * sx, y: child.frame.y * sy, w: child.frame.w * sx, h: child.frame.h * sy };
     for (const key of ['fontSize','padding','radius','strokeWidth','letterSpacing'] as const) child.style[key] *= scale;
+    if(child.runs)for(const run of child.runs)if(run.style?.fontSize)run.style.fontSize*=scale;
     for (const endpoint of [child.from, child.to]) if (endpoint && !endpoint.elementId) { if (endpoint.x !== undefined) endpoint.x *= sx; if (endpoint.y !== undefined) endpoint.y *= sy; }
     return child;
   });
