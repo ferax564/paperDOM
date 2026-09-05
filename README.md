@@ -20,7 +20,10 @@ PaperDOM combines freeform PowerPoint-style editing with a structured, machine-r
 - PowerPoint-style smart guides and snapping, with `Alt` to bypass
 - Multiple pages with reorder, duplicate, delete, and presentation mode
 - Undo/redo, local persistence, JSON import/export, and image paste/upload
-- Stable JSON document model plus a browser automation API
+- Stable JSON document model plus browser and headless agent APIs
+- Agent proposal review with before/after previews, diffs, warnings, accept/reject, and undo
+- CLI validation, outline/query, dry-run preview, and atomic document updates
+- Page transactions and optional plain-text speaker notes
 
 ## Why HTML-native?
 

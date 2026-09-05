@@ -7,7 +7,7 @@ import {
   Italic, List, ListOrdered, Magnet, MousePointer2, MoveRight, Play, Plus, Puzzle, Redo2, SendToBack, Share2,
   Square, Strikethrough, Trash2, Type, Underline, Undo2, Upload, X, ZoomIn, ZoomOut,
 } from "lucide-react";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
 import {
   computeMoveWithGuides,
   computeResizeWithGuides,
@@ -15,7 +15,6 @@ import {
   type GuideLine,
 } from "./editor-geometry";
 import {
-  applyDocumentTransaction,
   documentRestoreKeys,
   documentStorageKey,
   LAST_DOCUMENT_STORAGE_KEY,
@@ -29,6 +28,8 @@ import {
   type Kind,
   type PaperDOMDocument,
 } from "./document-model";
+import { createAgentAPI, isPreviewCurrent, type TransactionPreview } from "./agent-api.ts";
+import { AgentReview } from "./agent-review";
 import { listModeForText, toggleListStyle, type ListMode } from "./text-formatting";
 
 type Tool = "select" | "pan" | "text" | "shape" | "ellipse" | "arrow" | "line" | "image" | "plugin";
@@ -171,12 +172,13 @@ function snapEndpoint(x: number, y: number, elements: CanvasElement[]): Endpoint
 }
 
 function StaticPage({ page }: { page: CanvasPage }) {
-  return <div className="static-page" style={{ background: page.background.color }}>
-    <svg className="connector-layer" viewBox={`0 0 ${PAGE_W} ${PAGE_H}`} aria-hidden="true">
-      <defs><marker id="present-arrowhead" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto" markerUnits="strokeWidth"><path d="M0,0 L0,6 L9,3 z" fill="context-stroke" /></marker></defs>
+  const markerId = useId();
+  return <div className="static-page" style={{ background: page.background.color, width: page.size.width, height: page.size.height }}>
+    <svg className="connector-layer" viewBox={`0 0 ${page.size.width} ${page.size.height}`} aria-hidden="true">
+      <defs><marker id={markerId} markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto" markerUnits="strokeWidth"><path d="M0,0 L0,6 L9,3 z" fill="context-stroke" /></marker></defs>
       {page.elements.filter((e) => !e.hidden && ["connector", "line"].includes(e.type)).map((e) => {
         const a = endpointPosition(e.from, page.elements), b = endpointPosition(e.to, page.elements);
-        return <line key={e.id} x1={a.x} y1={a.y} x2={b.x} y2={b.y} stroke={e.style.stroke} strokeWidth={e.style.strokeWidth} strokeDasharray={e.style.lineStyle === "dashed" ? "10 8" : undefined} markerEnd={e.type === "connector" ? "url(#present-arrowhead)" : undefined} />;
+        return <line key={e.id} x1={a.x} y1={a.y} x2={b.x} y2={b.y} stroke={e.style.stroke} strokeWidth={e.style.strokeWidth} strokeDasharray={e.style.lineStyle === "dashed" ? "10 8" : undefined} markerEnd={e.type === "connector" ? `url(#${markerId})` : undefined} />;
       })}
     </svg>
     {[...page.elements].filter((e) => !e.hidden && !["connector", "line"].includes(e.type)).sort((a, b) => a.z - b.z).map((item) =>
@@ -217,6 +219,7 @@ export default function Home() {
   const [pageDragId, setPageDragId] = useState<string | null>(null);
   const [loaded, setLoaded] = useState(false);
   const [saveLabel, setSaveLabel] = useState("Saved locally");
+  const [review, setReview] = useState<{ key: number; preview?: TransactionPreview } | null>(null);
   const [jsonOpen, setJsonOpen] = useState(false);
   const [jsonValue, setJsonValue] = useState("");
   const [jsonError, setJsonError] = useState<string | null>(null);
@@ -232,6 +235,7 @@ export default function Home() {
   const panRef = useRef<{ x: number; y: number; left: number; top: number } | null>(null);
   const committedRef = useRef<PaperDOMDocument>(initialDocument);
   const documentRef = useRef<PaperDOMDocument>(initialDocument);
+  const agentContextRef = useRef<{ pageId: string; editingId: string | null }>({ pageId: initialDocument.pages[0].id, editingId: null });
   const historyActionRef = useRef(false);
   const spaceToolRef = useRef<Tool | null>(null);
   const textEditorRefs = useRef(new Map<string, HTMLDivElement>());
@@ -304,7 +308,8 @@ export default function Home() {
 
   useEffect(() => {
     documentRef.current = doc;
-  }, [doc]);
+    agentContextRef.current = { pageId: page.id, editingId };
+  }, [doc, page.id, editingId]);
 
   useEffect(() => {
     if (historyActionRef.current) {
@@ -553,21 +558,26 @@ export default function Home() {
 
   const addPage = () => {
     const p: CanvasPage = { id: uid("page"), name: `Page ${doc.pages.length + 1}`, size: { width: PAGE_W, height: PAGE_H }, background: { color: "#ffffff" }, elements: [textElement(uid("title"), "Untitled page", { x: 80, y: 60, w: 560, h: 60 }, 32, { style: makeStyle({ fill: "transparent", stroke: "transparent", fontSize: 32, fontWeight: 750, textAlign: "left" }) })] };
-    setDoc((d) => ({ ...d, revision: d.revision + 1, metadata: { ...d.metadata, updatedAt: new Date().toISOString() }, pages: [...d.pages, p] })); setPageId(p.id); setSelection([]);
+    if (getAgentAPI().transaction({ operations: [{ op: "createPage", page: p }] }).ok) setPageId(p.id);
   };
   const duplicatePage = (target = page.id) => {
     const source = doc.pages.find((p) => p.id === target); if (!source) return;
     const map = new Map(source.elements.map((e) => [e.id, uid(e.type)]));
     const copy: CanvasPage = { ...source, id: uid("page"), name: `${source.name} copy`, elements: source.elements.map((e) => ({ ...e, id: map.get(e.id)!, from: e.from ? { ...e.from, elementId: e.from.elementId ? map.get(e.from.elementId) : undefined } : undefined, to: e.to ? { ...e.to, elementId: e.to.elementId ? map.get(e.to.elementId) : undefined } : undefined })) };
-    const i = doc.pages.findIndex((p) => p.id === target); setDoc((d) => ({ ...d, revision: d.revision + 1, metadata: { ...d.metadata, updatedAt: new Date().toISOString() }, pages: [...d.pages.slice(0, i + 1), copy, ...d.pages.slice(i + 1)] })); setPageId(copy.id); setSelection([]);
+    const i = doc.pages.findIndex((p) => p.id === target);
+    if (getAgentAPI().transaction({ operations: [{ op: "createPage", page: copy, index: i + 1 }] }).ok) setPageId(copy.id);
   };
   const deletePage = (target = page.id) => {
     if (doc.pages.length === 1) return; const i = doc.pages.findIndex((p) => p.id === target); const pages = doc.pages.filter((p) => p.id !== target);
-    setDoc((d) => ({ ...d, revision: d.revision + 1, metadata: { ...d.metadata, updatedAt: new Date().toISOString() }, pages })); setPageId(pages[Math.max(0, i - 1)].id); setSelection([]);
+    if (getAgentAPI().transaction({ operations: [{ op: "deletePage", pageId: target }] }).ok) setPageId(pages[Math.max(0, i - 1)].id);
   };
   const reorderPage = (target: string) => {
     if (!pageDragId || pageDragId === target) return;
-    setDoc((d) => { const pages = [...d.pages], from = pages.findIndex((p) => p.id === pageDragId), to = pages.findIndex((p) => p.id === target), [moved] = pages.splice(from, 1); pages.splice(to, 0, moved); return { ...d, revision: d.revision + 1, metadata: { ...d.metadata, updatedAt: new Date().toISOString() }, pages }; }); setPageDragId(null);
+    const ids = doc.pages.map((page) => page.id), from = ids.indexOf(pageDragId), to = ids.indexOf(target);
+    if (from < 0 || to < 0) return;
+    const [moved] = ids.splice(from, 1); ids.splice(to, 0, moved);
+    getAgentAPI().transaction({ operations: [{ op: "reorderPages", pageIds: ids }] });
+    setPageDragId(null);
   };
   const alignSelection = (mode: "left" | "center" | "top" | "middle") => {
     if (selected.length < 2) return; const b = { l: Math.min(...selected.map((e) => e.frame.x)), r: Math.max(...selected.map((e) => e.frame.x + e.frame.w)), t: Math.min(...selected.map((e) => e.frame.y)), b: Math.max(...selected.map((e) => e.frame.y + e.frame.h)) };
@@ -732,34 +742,40 @@ export default function Home() {
     return () => { window.removeEventListener("keydown", onKeyDown); window.removeEventListener("keyup", onKeyUp); };
   }, [deleteSelection, duplicateSelection, pageId, patchPage, patchTextStyle, presenting, redo, selectedOne, selection, tool, undo]);
 
+  const commitAgentDocument = useCallback((next: PaperDOMDocument) => {
+    // Record each agent transaction synchronously, including back-to-back calls.
+    const previous = committedRef.current;
+    setPast((items) => [...items.slice(-49), previous]);
+    setFuture([]);
+    committedRef.current = next;
+    documentRef.current = next;
+    setDoc(next);
+    setPageId((id) => next.pages.some((page) => page.id === id) ? id : next.pages[0].id);
+    setSelection([]);
+  }, []);
+
+  const getAgentAPI = useCallback(() => createAgentAPI({
+    getDocument: () => documentRef.current,
+    getPageId: () => documentRef.current.pages.some((page) => page.id === agentContextRef.current.pageId)
+      ? agentContextRef.current.pageId : documentRef.current.pages[0].id,
+    commit: commitAgentDocument,
+    isBusy: () => Boolean(gestureRef.current || agentContextRef.current.editingId),
+    propose: (preview) => setReview((current) => ({ key: (current?.key ?? 0) + 1, preview })),
+  }), [commitAgentDocument]);
+
   useEffect(() => {
-    const sceneSummary = () => ({
-      revision: doc.revision,
-      page: { id: page.id, name: page.name, size: [page.size.width, page.size.height] },
-      elements: page.elements.filter((e) => !["connector", "line"].includes(e.type)).map((e) => ({ id: e.id, type: e.type, name: e.name, bounds: [e.frame.x, e.frame.y, e.frame.w, e.frame.h], text: e.content?.text, props: e.type === "plugin" ? e.content : undefined })),
-      connections: page.elements.filter((e) => e.type === "connector").map((e) => ({ id: e.id, from: e.from, to: e.to, kind: "arrow" })),
-      plugins: doc.plugins,
-    });
-    const paperDOMApi = {
-      getDocument: () => structuredClone(documentRef.current),
-      sceneSummary,
-      transaction: (payload: unknown) => {
-        const result = applyDocumentTransaction(documentRef.current, payload, page.id);
-        if (!result.ok) return result;
-        documentRef.current = result.document;
-        setDoc(result.document);
-        return {
-          ok: true,
-          previousRevision: result.previousRevision,
-          revision: result.revision,
-          changedElementIds: result.changedElementIds,
-        };
-      },
-    };
     const browserWindow = window as unknown as { paperdom?: unknown; canvasdoc?: unknown };
-    browserWindow.paperdom = paperDOMApi;
-    browserWindow.canvasdoc = paperDOMApi;
-  }, [doc, page]);
+    const agentAPI = getAgentAPI();
+    // Imperative integration installed only in this effect, never during render.
+    // eslint-disable-next-line react-hooks/immutability
+    browserWindow.paperdom = agentAPI;
+    // eslint-disable-next-line react-hooks/immutability
+    browserWindow.canvasdoc = agentAPI;
+    return () => {
+      if (browserWindow.paperdom === agentAPI) delete browserWindow.paperdom;
+      if (browserWindow.canvasdoc === agentAPI) delete browserWindow.canvasdoc;
+    };
+  }, [getAgentAPI]);
 
   const presentPage = doc.pages[Math.min(presentIndex, doc.pages.length - 1)];
   const presentScale = Math.max(0.35, Math.min(1, (viewport.width - 90) / PAGE_W, (viewport.height - 150) / PAGE_H));
@@ -816,7 +832,7 @@ export default function Home() {
     <header className="topbar">
       <div className="brand-block"><div className="brand-mark">P</div><div className="brand-name">PaperDOM</div><div className="workspace-badge">Workspace</div></div>
       <div className="document-title-wrap"><input className="document-title" value={doc.title} onFocus={(e) => { titleBeforeEditRef.current = e.currentTarget.value; }} onChange={(e) => setDoc((d) => ({ ...d, title: e.target.value }))} onBlur={() => setDoc((d) => d.title === titleBeforeEditRef.current ? d : ({ ...d, revision: d.revision + 1, metadata: { ...d.metadata, updatedAt: new Date().toISOString() } }))} aria-label="Document title" /><div className="saved-state"><Cloud size={13} /><Check size={12} /> {saveLabel}</div></div>
-      <div className="top-actions"><button className="icon-button" title="Undo" disabled={!past.length} onClick={undo}><Undo2 size={17} /></button><button className="icon-button" title="Redo" disabled={!future.length} onClick={redo}><Redo2 size={17} /></button><span className="top-divider" /><button className="quiet-button" onClick={() => { setPresentIndex(doc.pages.findIndex((p) => p.id === page.id)); setPresenting(true); }}><Eye size={15} /> Preview</button><button className="quiet-button" onClick={openJson}><Braces size={15} /> JSON</button><button className="export-button" onClick={exportJson}><Share2 size={15} /> Export JSON <ChevronDown size={14} /></button><button className="present-button" onClick={() => { setPresentIndex(doc.pages.findIndex((p) => p.id === page.id)); setPresenting(true); }}><Play size={15} fill="currentColor" /> Present</button><div className="avatar" aria-label="PaperDOM workspace">PD</div></div>
+      <div className="top-actions"><button className="icon-button" title="Undo" disabled={!past.length} onClick={undo}><Undo2 size={17} /></button><button className="icon-button" title="Redo" disabled={!future.length} onClick={redo}><Redo2 size={17} /></button><span className="top-divider" /><button className="quiet-button" onClick={() => { setPresentIndex(doc.pages.findIndex((p) => p.id === page.id)); setPresenting(true); }}><Eye size={15} /> Preview</button><button className="quiet-button" onClick={() => setReview({ key: Date.now() })}><Check size={15} /> Review changes</button><button className="quiet-button" onClick={openJson}><Braces size={15} /> JSON</button><button className="export-button" onClick={exportJson}><Share2 size={15} /> Export JSON <ChevronDown size={14} /></button><button className="present-button" onClick={() => { setPresentIndex(doc.pages.findIndex((p) => p.id === page.id)); setPresenting(true); }}><Play size={15} fill="currentColor" /> Present</button><div className="avatar" aria-label="PaperDOM workspace">PD</div></div>
     </header>
     <div className="editor-main">
       <aside className="page-rail">
@@ -887,6 +903,15 @@ export default function Home() {
     </div>
     <input ref={imageInputRef} className="hidden-input" type="file" accept="image/png,image/jpeg,image/webp,image/gif" onChange={(e) => { insertImageFile(e.target.files?.[0]); e.currentTarget.value = ""; }} />
     <input ref={importInputRef} className="hidden-input" type="file" accept="application/json,.json" onChange={(e) => { void importJsonFile(e.target.files?.[0]); e.currentTarget.value = ""; }} />
+
+    {review && <AgentReview key={review.key} document={doc} pageId={page.id} initialPreview={review.preview}
+      onClose={() => setReview(null)} renderPage={(page) => <StaticPage page={page} />}
+      onApply={(preview) => {
+        if (!isPreviewCurrent(documentRef.current, preview)) return { ok: false, message: "The document changed. Preview the proposal again." };
+        return getAgentAPI().transaction({ ...preview.payload, operations: preview.payload.operations.map((operation) =>
+          "pageId" in operation || ["createElement", "patchElement", "deleteElements", "replaceText"].includes(operation.op)
+            ? { ...operation, pageId: (operation as { pageId?: string }).pageId ?? preview.defaultPageId } : operation) });
+      }} />}
 
     {jsonOpen && <div className="json-backdrop" onPointerDown={() => setJsonOpen(false)}>
       <aside className="json-panel" onPointerDown={(e) => e.stopPropagation()}>

@@ -51,6 +51,7 @@ export type CanvasElement = {
 export type CanvasPage = {
   id: string;
   name: string;
+  notes?: string;
   size: { width: number; height: number };
   background: { color: string };
   elements: CanvasElement[];
@@ -68,6 +69,10 @@ export type PaperDOMDocument = {
 };
 
 export type AgentOperation =
+  | { op: "createPage"; page: CanvasPage; index?: number }
+  | { op: "patchPage"; pageId: string; patch: { name?: string; notes?: string; background?: { color: string } } }
+  | { op: "deletePage"; pageId: string }
+  | { op: "reorderPages"; pageIds: string[] }
   | { op: "createElement"; pageId?: string; element: CanvasElement }
   | { op: "patchElement"; pageId?: string; elementId: string; patch: CanvasElementPatch }
   | { op: "deleteElements"; pageId?: string; ids: string[] }
@@ -75,6 +80,8 @@ export type AgentOperation =
 
 export type AgentTransactionPayload = {
   expectedRevision?: number;
+  description?: string;
+  actor?: { id: string; name: string; type: "human" | "agent" };
   operations: AgentOperation[];
 };
 
@@ -296,10 +303,12 @@ function validationError(value: unknown): string | null {
     if (pageIds.has(page.id)) return `${path}.id is duplicated`;
     pageIds.add(page.id);
     if (typeof page.name !== "string") return `${path}.name must be a string`;
+    if (page.notes !== undefined && typeof page.notes !== "string") return `${path}.notes must be a string`;
     if (!isRecord(page.size) || !isFiniteNumber(page.size.width) || !isFiniteNumber(page.size.height) || page.size.width <= 0 || page.size.height <= 0) {
       return `${path}.size must contain positive finite dimensions`;
     }
     if (!isRecord(page.background) || typeof page.background.color !== "string") return `${path}.background.color must be a string`;
+    if (/\b(?:url|image-set)\s*\(/i.test(page.background.color)) return `${path}.background.color cannot load an external resource`;
     if (!Array.isArray(page.elements)) return `${path}.elements must be an array`;
 
     const elementIds = new Set<string>();
@@ -368,22 +377,69 @@ export function applyDocumentTransaction(
   if (!Array.isArray(payload.operations) || payload.operations.length === 0) {
     return transactionError(document, "invalid_transaction", "operations must be a non-empty array");
   }
+  if (payload.description !== undefined && typeof payload.description !== "string") {
+    return transactionError(document, "invalid_transaction", "description must be a string");
+  }
+  if (payload.actor !== undefined && (!isRecord(payload.actor) || !isNonEmptyString(payload.actor.id) ||
+    !isNonEmptyString(payload.actor.name) || (payload.actor.type !== "human" && payload.actor.type !== "agent"))) {
+    return transactionError(document, "invalid_transaction", "actor requires id, name, and human or agent type");
+  }
 
   const operations = payload.operations as unknown[];
   const next: PaperDOMDocument = structuredClone(document);
   const changed = new Set<string>();
-  const supportedOperations = new Set(["createElement", "patchElement", "deleteElements", "replaceText"]);
+  const supportedOperations = new Set(["createElement", "patchElement", "deleteElements", "replaceText", "createPage", "patchPage", "deletePage", "reorderPages"]);
 
   for (let index = 0; index < operations.length; index += 1) {
     const candidateOperation = operations[index];
-    if (!isRecord(candidateOperation) || !supportedOperations.has(String(candidateOperation.op))) {
+    if (!isRecord(candidateOperation) || typeof candidateOperation.op !== "string" || !supportedOperations.has(candidateOperation.op)) {
       return transactionError(document, "invalid_operation", "Unsupported operation", index);
     }
     const operation: Record<string, unknown> = candidateOperation;
+    if (operation.op === "createPage") {
+      if (!isRecord(operation.page) || !isNonEmptyString(operation.page.id) || !Array.isArray(operation.page.elements) ||
+        operation.page.elements.some((element) => !isRecord(element) || !isNonEmptyString(element.id))) {
+        return transactionError(document, "invalid_operation", "createPage requires a page with an id and elements", index);
+      }
+      if (next.pages.some((page) => page.id === (operation.page as CanvasPage).id)) {
+        return transactionError(document, "invalid_operation", "Page id already exists", index);
+      }
+      const position = operation.index === undefined ? next.pages.length : operation.index;
+      if (!Number.isInteger(position) || (position as number) < 0 || (position as number) > next.pages.length) {
+        return transactionError(document, "invalid_operation", "Page index is out of range", index);
+      }
+      const created = structuredClone(operation.page) as CanvasPage;
+      next.pages.splice(position as number, 0, created);
+      created.elements.forEach((element) => changed.add(element.id));
+      continue;
+    }
+    if (operation.op === "reorderPages") {
+      const ids = operation.pageIds;
+      if (!Array.isArray(ids) || ids.length !== next.pages.length || new Set(ids).size !== ids.length ||
+        ids.some((id) => !next.pages.some((page) => page.id === id))) {
+        return transactionError(document, "invalid_operation", "pageIds must contain each page id exactly once", index);
+      }
+      next.pages = ids.map((id) => next.pages.find((page) => page.id === id)!);
+      continue;
+    }
     const pageId = operation.pageId === undefined ? defaultPageId : operation.pageId;
     if (!isNonEmptyString(pageId)) return transactionError(document, "invalid_operation", "pageId must be a non-empty string", index);
     const page = next.pages.find((candidate) => candidate.id === pageId);
     if (!page) return transactionError(document, "invalid_operation", `Page ${pageId} was not found`, index);
+
+    if (operation.op === "deletePage") {
+      if (next.pages.length === 1) return transactionError(document, "invalid_operation", "Cannot delete the last page", index);
+      page.elements.forEach((element) => changed.add(element.id));
+      next.pages = next.pages.filter((candidate) => candidate.id !== pageId);
+      continue;
+    }
+    if (operation.op === "patchPage") {
+      if (!isRecord(operation.patch) || Object.keys(operation.patch).some((key) => !["name", "notes", "background"].includes(key))) {
+        return transactionError(document, "invalid_operation", "patchPage supports name, notes, and background", index);
+      }
+      Object.assign(page, structuredClone(operation.patch));
+      continue;
+    }
 
     if (operation.op === "createElement") {
       if (!isRecord(operation.element)) return transactionError(document, "invalid_operation", "createElement requires element", index);

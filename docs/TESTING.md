@@ -7,7 +7,12 @@ npm run lint
 npm run typecheck
 npm run audit:prod
 npm test
+npx playwright install chromium
+npm run test:browser
 ```
+
+`npm run test:unit` runs the pure kernel, CLI, geometry, formatting, and auth tests without building.
+`npm run test:browser` runs Playwright Chromium against the production build on port 4173. Run `npm test` first. CI installs Chromium and retains traces/screenshots on browser-test failure.
 
 `npm test` builds the production Worker, validates its packaged entry point and hosting manifest, then runs the Node test suite.
 `npm run audit:prod` fails on high-severity vulnerabilities in shipped npm dependencies.
@@ -18,7 +23,9 @@ npm test
 | Text boxes | Click and reverse-drag geometry, bounds, minimum dimensions |
 | Plain-text lists | Bullets, numbering, mixed input, blank lines, indentation, CRLF normalization |
 | Document model | Legacy normalization, nested defaults, IDs, endpoints, style ranges, unsafe image schemes, storage keys |
-| Agent API core | Revision conflicts, nested patching, text replacement, deletion cleanup, invalid operations, atomic validation |
+| Agent API core | Revision conflicts, nested patching, deletion cleanup, atomic page operations, deterministic preview/diff including element order, strict operation/actor discriminators, draft conflicts, isolated queries/proposals, sequential calls, rotated bounds, alt-text warnings |
+| CLI | Validation/outline/preview/apply, stale revisions, exclusive file creation and input preservation |
+| Browser workflow | Proposal preview/accept/reject, Escape/focus, invalid/stale proposals, back-to-back undo, notes review, page add/duplicate/reorder/delete and reload persistence, retained API handles across page changes/deletion and active text editing |
 | Authentication helper | Local return paths and open-redirect rejection |
 | Production artifact | Worker import, HTML response, preview metadata, PaperDOM branding, core editor controls |
 | Production dependencies | CI audit at high severity or above |
@@ -41,7 +48,7 @@ Run this before a release that changes editor interactions:
 
 ## Known unautomated risks
 
-- Pointer gestures, contenteditable line-break behavior, focus transitions, keyboard shortcuts, drag-and-drop ordering, and clipboard image paste do not yet have browser end-to-end tests.
+- Canvas pointer gestures, contenteditable line-break behavior, formatting shortcuts, and clipboard image paste still lack browser end-to-end tests.
 - There is no screenshot/visual-regression suite, so CSS and browser differences require preview inspection.
 - Touch editing is not product-complete; the current layout is desktop-first and hides the inspector below 980 px.
 - Storage-quota exhaustion and very large documents are handled with user-visible save failure text but are not stress-tested.
@@ -49,4 +56,4 @@ Run this before a release that changes editor interactions:
 - The optional D1 example is not part of the running app and has no integration test against a real database.
 - A full development-dependency audit currently reports one moderate esbuild advisory through Drizzle Kit's optional D1 migration tooling. npm exposes no compatible fix; PaperDOM does not run that esbuild development server. The production-dependency audit is clean and enforced in CI.
 
-The highest-value next testing investment is a small Playwright suite for multiline editing, pointer snapping, page operations, import/export, and persistence. It should run against the production build, not only the development server.
+Extend the production-build Playwright suite with multiline editing, pointer snapping, import/export, and visual baselines. The current suite covers the agent review and page-command workflows.
