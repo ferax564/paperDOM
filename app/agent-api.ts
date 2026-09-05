@@ -38,7 +38,7 @@ export function queryNodes(document: PaperDOMDocument, query: NodeQuery = {}) {
       (!query.ids || query.ids.includes(element.id)) && (!query.type || element.type === query.type) &&
       (query.hidden === undefined || Boolean(element.hidden) === query.hidden) &&
       (query.locked === undefined || Boolean(element.locked) === query.locked) &&
-      (text === undefined || [element.name, ...Object.values(element.content ?? {})].some((value) => typeof value === "string" && value.toLowerCase().includes(text))))
+      (text === undefined || [element.name, ...Object.values(element.content ?? {}), ...Object.values(element.component?.props ?? {})].some((value) => typeof value === "string" && value.toLowerCase().includes(text))))
       .map((element) => ({ pageId: page.id, element }))));
 }
 
@@ -47,7 +47,7 @@ export function summarizeScene(document: PaperDOMDocument, pageId: string) {
   return structuredClone({ revision: document.revision,
     page: { id: page.id, name: page.name, size: [page.size.width, page.size.height] },
     elements: page.elements.filter((e) => !e.hidden && !["connector", "line"].includes(e.type)).map((e) => ({
-      id: e.id, type: e.type, name: e.name, bounds: [e.frame.x, e.frame.y, e.frame.w, e.frame.h], text: e.content?.text, props: e.type === "component" ? e.component?.props : e.type === "plugin" ? e.content : undefined,
+      id: e.id, type: e.type, name: e.name, definitionId: e.component?.definitionId, bounds: [e.frame.x, e.frame.y, e.frame.w, e.frame.h], text: e.content?.text, props: e.type === "component" ? e.component?.props : e.type === "plugin" ? e.content : undefined,
     })),
     connections: page.elements.filter((e) => !e.hidden && e.type === "connector").map((e) => ({ id: e.id, from: e.from, to: e.to, kind: "arrow" })),
     plugins: document.plugins,

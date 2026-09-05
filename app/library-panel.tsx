@@ -14,7 +14,7 @@ export function LibraryPanel({ document, selectedCount, onClose, onInsert, onTem
   const [tab,setTab] = useState<'components'|'templates'|'examples'>('components');
   const [search,setSearch] = useState(''), [name,setName] = useState('My reusable piece'), [error,setError] = useState('');
   const library = effectiveLibrary(document);
-  useEffect(()=>{const modal=dialog.current;modal?.showModal();return ()=>modal?.close();},[]);
+  useEffect(()=>{const modal=dialog.current;const opener=window.document.activeElement;modal?.showModal();return ()=>{modal?.close();if(opener instanceof HTMLElement)opener.focus();};},[]);
   const run = (action:()=>void) => { try { action();setError(''); } catch(e) {setError(e instanceof Error?e.message:'Unable to complete action');} };
   const exportLibrary = () => { const blob=new Blob([JSON.stringify(library,null,2)],{type:'application/json'}),url=URL.createObjectURL(blob),a=window.document.createElement('a');a.href=url;a.download='paperdom-library.json';a.click();setTimeout(()=>URL.revokeObjectURL(url),1000); };
   const preview = (page:CanvasPage,lib:ComponentLibrary=library) => { const scale=Math.min(280/page.size.width,160/page.size.height);return <div className="library-preview"><div style={{width:page.size.width*scale,height:page.size.height*scale}}><div style={{transform:`scale(${scale})`,transformOrigin:'top left'}}>{renderPage(page,{...document,library:lib})}</div></div></div>; };

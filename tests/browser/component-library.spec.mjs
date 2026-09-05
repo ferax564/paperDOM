@@ -11,6 +11,7 @@ test('insert, edit, undo, redo and restore a linked component',async({page})=>{
   await expect(card).toContainText('24.8k');
   await page.getByLabel('Component Value',{exact:true}).fill('42k');
   await expect(card).toContainText('42k');
+  await expect(page.getByLabel('Component Value',{exact:true})).toBeVisible();
   await page.getByTitle('Undo',{exact:true}).click();await expect(card).toContainText('24.8k');
   await page.getByTitle('Redo',{exact:true}).click();await expect(card).toContainText('42k');
   await expect.poll(()=>page.evaluate(id=>JSON.parse(localStorage.getItem(`paperdom:${id}`)||'null')?.pages[0].elements.find(e=>e.type==='component')?.component.props.value,'doc_paperdom_demo')).toBe('42k');

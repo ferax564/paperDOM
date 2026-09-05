@@ -757,7 +757,8 @@ export default function Home() {
     documentRef.current = next;
     setDoc(next);
     setPageId((id) => next.pages.some((page) => page.id === id) ? id : next.pages[0].id);
-    setSelection([]);
+    const active = next.pages.find(page => page.id === agentContextRef.current.pageId) ?? next.pages[0];
+    setSelection(ids => ids.filter(id => active.elements.some(element => element.id === id)));
   }, []);
 
   const getAgentAPI = useCallback(() => createAgentAPI({
