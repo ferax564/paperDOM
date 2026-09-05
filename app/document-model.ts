@@ -1,3 +1,4 @@
+import { MAX_PPTX_SOURCE_BYTES, type PowerPointSource } from './pptx-source.ts';
 import {safeLink,safeMedia,replaceRunText,type TextRun,type AnimationCue,type MediaData} from './advanced-model.ts';
 import type { TableData, ChartData } from './presentation-tools.ts';
 import { validateLibrary, validateTheme, validateInstance, defaultTheme, type ComponentLibrary, type ComponentInstance, type Theme } from './component-library.ts';
@@ -81,6 +82,7 @@ export type PaperDOMDocument = {
   revision: number;
   pages: CanvasPage[];
   plugins: { id: string; version: string }[];
+  powerPointSource?: PowerPointSource;
   masters?: CanvasPage[];
   library?: ComponentLibrary;
   theme?: Theme;
@@ -324,6 +326,10 @@ function validationError(value: unknown): string | null {
   if (!isNonEmptyString(value.id)) return "id must be a non-empty string";
   if (typeof value.title !== "string") return "title must be a string";
   if (!Number.isSafeInteger(value.revision) || (value.revision as number) < 0) return "revision must be a non-negative integer";
+  if (value.powerPointSource !== undefined) {
+    const source = value.powerPointSource;
+    if (!isRecord(source) || typeof source.base64 !== 'string' || source.base64.length > Math.ceil(MAX_PPTX_SOURCE_BYTES / 3) * 4 || (source.base64.length % 4 !== 0 || !/^[A-Za-z0-9+/]+={0,2}$/.test(source.base64)) || !source.base64 || !/^[a-f0-9]{64}$/.test(String(source.sha256)) || !/^[a-f0-9]{64}$/.test(String(source.modelSha256))) return 'Invalid retained PowerPoint source';
+  }
   if (!isRecord(value.metadata) || !isNonEmptyString(value.metadata.createdAt) || !isNonEmptyString(value.metadata.updatedAt)) {
     return "metadata must contain createdAt and updatedAt strings";
   }

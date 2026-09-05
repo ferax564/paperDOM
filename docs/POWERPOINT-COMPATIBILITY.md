@@ -13,19 +13,29 @@ The six previously missing categories now have implementations, with bounded sco
 | PPTX import | Ordered slides, text runs and links, layout/master decorations, placeholder geometry fallback, images, tables, first bar/line chart series, notes, media and basic transitions | Approximations produce an import report. SmartArt/OLE, cropped images, full theme inheritance, complex groups and native object timing are not retained |
 | Masters | Create from selection, link/apply to slides, edit shared text/geometry/background, save flattened portable templates | Basic text/rectangle/image masters export as linked native layouts. Complex masters flatten into editable slide objects. Full placeholder authoring is absent |
 | Rich text | Range-based emphasis, size, color, hyperlinks; inline replacement preserves runs; editable PPTX and HTML runs | Paragraph hierarchy, typography controls and scripts listed below remain incomplete |
-| Motion | Eight effects, click/with-previous/after-previous, delay/duration, order, linear movement, reduced motion | PaperDOM playback only. Native PowerPoint object timing import/export and Morph are not implemented |
+| Motion | Eight effects, click/with-previous/after-previous, delay/duration, order, linear movement, reduced motion | Native timing import/export for the supported behavior subset; actual PowerPoint playback remains unverified. Morph is absent |
 | Audio/video | Embedded MP4/WebM and MP3/WAV/Ogg, controls, loop/mute/autoplay, start/end boundaries, captions URL, native PPTX media | Browser codec/autoplay restrictions apply. Native trimming/loop/timing settings are not exported. Narration and recording are absent |
-| Collaboration | Authenticated shared D1/R2 documents, editor/viewer access, presence, two-second polling, revision checks, independent-field merging, explicit conflicts, access revocation | Same-field conflicts need a user decision. No character-level OT/CRDT, live cursors, comments, notifications or history UI. Site access must be granted separately |
+| Collaboration | Authenticated shared D1/R2 documents, editor/viewer access, presence, two-second polling, revision checks, independent-field merging, explicit conflicts, access revocation | Overlapping character replacements need a user decision. Independent characters merge; no OT/CRDT, live cursors, comments, notifications or history UI. Site access must be granted separately |
 
 No new runtime dependency was added. The implementation uses the existing schema/transaction layer, native DOMParser/Web Animations/media controls, JSZip, and the existing Sites storage bindings. Source snapshots in R2 are immutable; the database points to the current version. Retention/cleanup of older blobs is not yet implemented.
 
 ## Verification
 
-- Local production build, lint, typecheck and 121 Node/CLI/artifact/export/database tests pass.
+- Local production build, lint, typecheck and 121 baseline Node/CLI/artifact/export/database tests pass.
 - GitHub CI also runs the Chromium suite, including range formatting, linked master updates, all eight effects, PPTX import, corrupt-file recovery, real WAV playback and conflict handling.
 - Server tests use real SQLite statements with an in-memory R2 adapter. The client collaboration browser test uses intercepted HTTP responses; this is not a multi-user test on the hosted service.
 - Native Microsoft PowerPoint rendering/playback, Firefox/Safari and assistive technology remain **unverified**.
 - Earlier CI failures remain visible in history. Each release must pass the checks on its current PR head and merged main commit.
+
+## Current continuation: native preservation and character synchronization
+
+- Original PPTX packages up to 8 MiB now survive unchanged import/export byte for byte, including unsupported layout and animation parts. Content edits regenerate the editable subset; this does not close full editable layout fidelity.
+- Regenerated PPTX writes native timing for all eight PaperDOM effects and fade/push transitions. The editable importer reads the corresponding simple native behavior subset. Native playback has not been verified.
+- Inline text synchronizes while focused. Three-way character merging supports independent edits and rich-run formatting; overlapping changes remain explicit conflicts. This is not a CRDT or complete offline collaboration.
+- An interactive Windows PowerPoint renderer exports PNG/PDF/optional MP4 with an integrity manifest. Its verifier is tested with synthetic fixtures, which are not native rendering evidence. See [native rendering](NATIVE-RENDERING.md).
+- A two-real-user hosted verification script exercises access, presence, CAS, character merge and revocation. It refuses same-user sessions. Its harness and local two-browser-context tests are covered; hosted execution remains blocked by the owner-only audience and missing second authenticated session. See [shared editing](SHARED-EDITING.md).
+
+Full PowerPoint parity remains unfinished. Native rendering execution, complete edited animation/layout fidelity, arbitrary conflict-free character collaboration, and hosted two-user evidence are not claimed by this release.
 
 ## Existing editor inventory
 
@@ -95,14 +105,14 @@ No new runtime dependency was added. The implementation uses the existing schema
 | Images | Crop/mask/focal point, correction/recolor, background removal, compression, online/stock search, SVG editing, screenshot capture |
 | Tables | Cell/row/column UI, merging/splitting, formulas, cell-level styling, Excel-linked data, large-data virtualization |
 | Charts | Multiple series, all chart types, axes/grid customization, legends, linked Excel workbooks, data labels/formatting controls, trendlines, chart animations |
-| Animation | Native PPTX timing retention, arbitrary motion curves, interactive object triggers, Morph, animation copying |
+| Animation | Complete edited native timing fidelity, arbitrary motion curves, interactive object triggers, Morph, animation copying |
 | Audio/video | YouTube insertion, destructive trim, bookmarks, fades, narration, audio across slides, recording, native playback-setting retention |
 | Presenting | Separate audience/presenter windows, next-slide presenter preview, rehearsals, recording, custom shows, loop/kiosk settings, laser/ink, live captions/subtitles, audience polling, remote presenter controls |
 | Collaboration | Character-level simultaneous text merging, cursors, comments/mentions, threaded review, version-history UI, notifications |
 | Accessibility | Full keyboard focus audit, tested screen-reader reading order, comprehensive accessibility checker, contrast analysis, tagged PDF, offline caption packaging, accessible exported chart descriptions |
 | Proofing | Browser spellcheck only; no application dictionary, grammar/style checker, thesaurus or proofing language controls |
 | Printing | Notes pages, handouts, outlines, headers/footers, slide range controls and color/grayscale options in-app |
-| Interoperability | Complete PPTX fidelity and native master/animation/media-setting retention, ODP/Keynote/PDF import, VBA/macros, add-ins, OLE/Excel linking, Office document protection/signatures |
+| Interoperability | Complete edited PPTX fidelity and native master/animation/media-setting conversion, ODP/Keynote/PDF import, VBA/macros, add-ins, OLE/Excel linking, Office document protection/signatures |
 | Platforms | Native desktop/offline installation, native mobile apps, full touch/stylus support; Firefox/Safari compatibility is not certified |
 | Scale/reliability | Large-deck performance benchmark, local-storage quota recovery workflow, cross-tab edits, crash recovery/version snapshots, cloud backups |
 
