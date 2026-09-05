@@ -18,3 +18,8 @@ test('native transitions and automatic advance are emitted before timing',async(
     const zip=await JSZip.loadAsync(await powerPointBytes(d)),xml=await zip.file('ppt/slides/slide1.xml').async('string');
     assert.match(xml,/<p:transition advTm="4000"><p:push dir="l"\/><\/p:transition>/);
 });
+test('automatic first cue starts without a click and retains its duration',async()=>{
+    const d=documentFixture();d.pages[0].animations=[{id:'a',elementId:'text_1',effect:'appear',trigger:'with-previous',duration:.5,delay:.1}];
+    const zip=await JSZip.loadAsync(await powerPointBytes(d)),xml=await zip.file('ppt/slides/slide1.xml').async('string');
+    assert.doesNotMatch(xml,/delay="indefinite"/);assert.match(xml,/dur="500" fill="hold" presetClass="entr" nodeType="withEffect"/);
+});

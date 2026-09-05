@@ -26,7 +26,8 @@ try {
     $presentation = $app.Presentations.Open($source, -1, 0, -1)
     $height = [int][Math]::Round($Width * $presentation.PageSetup.SlideHeight / $presentation.PageSetup.SlideWidth)
     $files = @()
-    $presentation.ExportAsFixedFormat((Join-Path $destination 'presentation.pdf'), 2)
+    # PrintRange is required by the COM API: null means all slides, including hidden ones here.
+    $presentation.ExportAsFixedFormat((Join-Path $destination 'presentation.pdf'), 2, 1, 0, 1, 1, -1, $null, 1, '', $true, $true, $true, $true, $false)
     $files += 'presentation.pdf'
     for ($i = 1; $i -le $presentation.Slides.Count; $i++) {
         $name = 'slide-{0:D3}.png' -f $i

@@ -10,7 +10,7 @@ The six previously missing categories now have implementations, with bounded sco
 
 | Category | Implemented | Remaining boundary |
 |---|---|---|
-| PPTX import | Ordered slides, text runs and links, layout/master decorations, placeholder geometry fallback, images, tables, first bar/line chart series, notes, media and basic transitions | Approximations produce an import report. SmartArt/OLE, cropped images, full theme inheritance, complex groups and native object timing are not retained |
+| PPTX import | Ordered slides, text runs and links, layout/master decorations, placeholder geometry fallback, images, tables, first bar/line chart series, notes, media and basic transitions | Approximations produce an import report. Original packages up to 8 MiB are retained for unchanged export; SmartArt/OLE, crop, full theme inheritance, complex groups and arbitrary timing are not fully converted into the editable model |
 | Masters | Create from selection, link/apply to slides, edit shared text/geometry/background, save flattened portable templates | Basic text/rectangle/image masters export as linked native layouts. Complex masters flatten into editable slide objects. Full placeholder authoring is absent |
 | Rich text | Range-based emphasis, size, color, hyperlinks; inline replacement preserves runs; editable PPTX and HTML runs | Paragraph hierarchy, typography controls and scripts listed below remain incomplete |
 | Motion | Eight effects, click/with-previous/after-previous, delay/duration, order, linear movement, reduced motion | Native timing import/export for the supported behavior subset; actual PowerPoint playback remains unverified. Morph is absent |

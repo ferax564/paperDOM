@@ -41,3 +41,20 @@ test('native animation import reads all supported effects from actual slide XML'
     expect(imported.powerPointSource.sha256).toMatch(/^[a-f0-9]{64}$/);
     const importedMove=imported.pages[0].animations.find(c=>c.effect==='move');expect(importedMove.dx).toBeCloseTo(120);expect(importedMove.dy).toBeCloseTo(60);
 });
+test('composition text remains local until committed, then merges remote changes',async({page,context})=>{
+    const{call,env,sql}=collaborationHarness(),d=documentFixture();
+    const saved=await call('','POST',{document:d},'alice');
+    try{
+        await routeUser(context,env,'alice');await page.goto(`/?deck=${saved.id}`);await expect.poll(()=>text(page)).toBe('Hello');
+        const input=page.locator('.page-canvas [data-element-id="text_1"] .element-text');await input.dblclick();
+        await input.evaluate(e=>{e.dispatchEvent(new CompositionEvent('compositionstart',{bubbles:true}));e.textContent='你好';e.dispatchEvent(new InputEvent('input',{bubbles:true,isComposing:true}));});
+        expect(await text(page)).toBe('Hello');
+        const remote=structuredClone(d);remote.title='Remote title during IME';
+        await call(`/${saved.id}`,'PUT',{version:1,document:remote},'alice');
+        await input.evaluate(e=>e.dispatchEvent(new CompositionEvent('compositionend',{bubbles:true,data:'你好'})));
+        await expect.poll(()=>text(page)).toBe('你好');
+        await expect.poll(()=>page.evaluate(()=>window.paperdom.getDocument().title),{timeout:15000}).toBe(remote.title);
+        await expect(input).toBeFocused();await expect(input).toHaveText('你好');
+        await expect.poll(async()=> (await call(`/${saved.id}`,'GET',undefined,'alice')).document.pages[0].elements[0].content.text).toBe('你好');
+    }finally{await context.unrouteAll({behavior:'wait'});sql.close();}
+});

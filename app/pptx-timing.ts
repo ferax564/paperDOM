@@ -39,7 +39,7 @@ export function addPowerPointTiming(xml: string, page: CanvasPage, slideSize = p
             const entrance = ['appear', 'fade-in', 'fly-in', 'zoom'].includes(cue.effect);
             const cueId = ++id;
             const children = targets.get(escape(cue.elementId))!.map(shapeId => effect(shapeId, cue)).join('');
-            return `<p:par><p:cTn id="${cueId}" fill="hold" presetClass="${entrance ? 'entr' : cue.effect === 'fade-out' ? 'exit' : cue.effect === 'move' ? 'path' : 'emph'}" nodeType="${cue.trigger === 'click' ? 'clickEffect' : cue.trigger === 'after-previous' ? 'afterEffect' : 'withEffect'}"><p:stCondLst><p:cond delay="${Math.round(at * 1000)}"/></p:stCondLst><p:childTnLst>${children}</p:childTnLst></p:cTn></p:par>`;
+            return `<p:par><p:cTn id="${cueId}" dur="${ms(cue.duration)}" fill="hold" presetClass="${entrance ? 'entr' : cue.effect === 'fade-out' ? 'exit' : cue.effect === 'move' ? 'path' : 'emph'}" nodeType="${cue.trigger === 'click' ? 'clickEffect' : cue.trigger === 'after-previous' ? 'afterEffect' : 'withEffect'}"><p:stCondLst><p:cond delay="${Math.round(at * 1000)}"/></p:stCondLst><p:childTnLst>${children}</p:childTnLst></p:cTn></p:par>`;
         }).join('');
         return `<p:par><p:cTn id="${groupId}" fill="hold"><p:stCondLst><p:cond delay="${batch[0].cue.trigger === 'click' ? 'indefinite' : '0'}"/></p:stCondLst><p:childTnLst>${children}</p:childTnLst></p:cTn></p:par>`;
     }).join('');
@@ -62,7 +62,7 @@ export function readPowerPointTiming(part: Document, page: CanvasPage): { cues: 
         const trigger: AnimationCue['trigger'] = node.getAttribute('nodeType') === 'clickEffect' ? 'click' : node.getAttribute('nodeType') === 'afterEffect' ? 'after-previous' : 'with-previous';
         const delayNode = Array.from(node.children).find(n => n.localName === 'stCondLst');
         const at = Number(delayNode ? first(delayNode, 'cond')?.getAttribute('delay') ?? 0 : 0) / 1000;
-        const durations = all(node, 'cTn').map(n => Number(n.getAttribute('dur') ?? 0) / 1000 * (n.getAttribute('autoRev') === '1' ? 2 : 1));
+        const durations = [node, ...all(node, 'cTn')].map(n => Number(n.getAttribute('dur') ?? 0) / 1000 * (n.getAttribute('autoRev') === '1' ? 2 : 1));
         const duration = Math.max(.001, ...durations.filter(Number.isFinite));
         let effect: AnimationCue['effect'] | undefined, dx: number | undefined, dy: number | undefined;
         if (motion) {

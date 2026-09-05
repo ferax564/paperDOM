@@ -119,3 +119,7 @@ Text-bearing objects may include `runs: [{text, style?, link?}]`. Concatenated r
 Audio/video objects require `media: {src, autoplay, loop, muted, start, end?, poster?, captions?}`. Pages may include `animations: [{id, elementId, effect, trigger, duration, delay, dx?, dy?}]`. Targets must exist on that page; deletion cleans up cues and templates remap them.
 
 See `app/advanced-model.ts` for effect names and sequencing, and the [compatibility matrix](POWERPOINT-COMPATIBILITY.md) for import/export limits.
+
+## Retained PowerPoint source
+
+Optional `powerPointSource` contains `{base64, sha256, modelSha256}` for an imported PPTX up to 8 MiB compressed. It is provenance for exact unchanged native export, not editable slide data. SHA-256 values are lowercase 64-character hex strings. The model fingerprint includes normalized title, pages, masters, library and theme; revisions and timestamps do not affect it. Content edits regenerate the supported PPTX subset. See [native rendering](NATIVE-RENDERING.md).

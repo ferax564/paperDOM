@@ -39,3 +39,11 @@ test('caret offsets follow inserts, removals, and UTF-16 emoji', () => {
     assert.equal(mapTextOffset('😀abc', 'X😀abc', 3), 4);
     assert.equal(mapTextOffset('abcdef', 'aXXf', 3), 3);
 });
+test('character merge is symmetric across all disjoint insert positions',()=>{
+    const base='abcdef';
+    for(let a=0;a<=base.length;a++)for(let b=0;b<=base.length;b++){
+        const local=base.slice(0,a)+'X'+base.slice(a),remote=base.slice(0,b)+'Y'+base.slice(b);
+        const forward=mergeText(base,local,remote),reverse=mergeText(base,remote,local);
+        assert.equal(forward,reverse);assert.equal(forward.replace('X','').replace('Y',''),base);
+    }
+});
