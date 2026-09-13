@@ -5,9 +5,9 @@ import {randomId} from './ids.ts';
 
 import {
   AlignCenter, AlignLeft, AlignRight, Bold, Braces, BringToFront, Check, ChevronDown,
-  ArrowLeft, ArrowRight, Circle, Cloud, Copy, FileDown, FileJson, GripVertical, Hand, Image as ImageIcon, Lock, Minus,
-  Italic, List, ListOrdered, Magnet, MousePointer2, MoveRight, Play, Plus, Puzzle, Redo2, SendToBack, Share2,
-  Square, Strikethrough, Trash2, Type, Underline, Undo2, Upload, X, ZoomIn, ZoomOut,
+  ArrowLeft, ArrowRight, Circle, Cloud, Copy, FileDown, FileJson, GripVertical, Group, Hand, Image as ImageIcon, Lock, Minus,
+  Italic, List, ListOrdered, Magnet, MousePointer2, MoveRight, PaintBucket, Play, Plus, Puzzle, Redo2, SendToBack, Share2,
+  Square, Strikethrough, Trash2, Type, Underline, Undo2, Ungroup, Upload, X, ZoomIn, ZoomOut,
 } from "lucide-react";
 import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
 import {
@@ -768,6 +768,24 @@ export default function Home() {
     }) }));
   }, [selection, page.elements, pageId, patchPage]);
 
+  const patchSelectedStyle = useCallback((patch: Partial<ElementStyle>, targets?: CanvasElement[]) => {
+    const ids = (targets ?? selected).map((e) => e.id);
+    patchPage(pageId, (p) => ({ ...p, elements: p.elements.map((e) => ids.includes(e.id) && !e.locked ? { ...e, style: { ...e.style, ...patch } } : e) }));
+  }, [pageId, patchPage, selected]);
+
+  const edgeZOrder = useCallback((front: boolean) => {
+    const zs = page.elements.map((e) => e.z);
+    if (!zs.length) return;
+    const base = front ? Math.max(...zs) : Math.min(...zs);
+    patchPage(pageId, (p) => {
+      const ordered = p.elements.filter((e) => selection.includes(e.id) && !e.locked).sort((a, b) => a.z - b.z);
+      return { ...p, elements: p.elements.map((e) => {
+        const index = ordered.findIndex((o) => o.id === e.id);
+        return index < 0 ? e : { ...e, z: front ? base + index + 1 : base - (ordered.length - index) };
+      }) };
+    });
+  }, [selection, page.elements, pageId, patchPage]);
+
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
       const target = event.target as HTMLElement | null;
@@ -976,6 +994,42 @@ export default function Home() {
             <div className="zoom-control"><button onClick={() => setZoom((z) => Math.max(50, z - 10))} aria-label="Zoom out"><ZoomOut size={15} /></button><span>{zoom}%</span><button onClick={() => setZoom((z) => Math.min(150, z + 10))} aria-label="Zoom in"><ZoomIn size={15} /></button></div>
           </div>
         </div>
+        {selected.length > 0 && (() => {
+          const textItems = selected.filter((e) => ["text", "shape", "ellipse"].includes(e.type) && !e.locked);
+          const lineItems = selected.filter((e) => ["connector", "line"].includes(e.type) && !e.locked);
+          const base = textItems[0] ?? selected.find((e) => !e.locked) ?? selected[0];
+          const s = base.style, noFill = s.fill === "transparent", noStroke = s.stroke === "transparent";
+          const allBold = textItems.length > 0 && textItems.every((e) => e.style.fontWeight >= 700);
+          const allItalic = textItems.length > 0 && textItems.every((e) => (e.style.fontStyle ?? "normal") === "italic");
+          const allUnderline = textItems.length > 0 && textItems.every((e) => e.style.underline);
+          const allStrike = textItems.length > 0 && textItems.every((e) => e.style.strike);
+          return <div className="format-bar" role="toolbar" aria-label="Formatting" aria-orientation="horizontal">
+            {textItems.length > 0 && <>
+              <select className="format-font" aria-label="Font family" value={s.fontFamily ?? DEFAULT_FONT} onChange={(e) => patchSelectedStyle({ fontFamily: e.target.value }, textItems)}>{FONT_OPTIONS.map((font) => <option key={font.label} value={font.value}>{font.label}</option>)}</select>
+              <input className="format-size" aria-label="Font size" type="number" min={8} max={160} value={Math.round(s.fontSize)} onChange={(e) => { const v = Number(e.target.value); if (e.target.value !== "" && Number.isFinite(v)) patchSelectedStyle({ fontSize: clamp(v, 8, 160) }, textItems); }} />
+              <div className="format-group" role="group" aria-label="Character style">
+                <button title="Bold (Ctrl+B)" aria-label="Bold" aria-pressed={allBold} className={allBold ? "active" : ""} onPointerDown={(e) => e.preventDefault()} onClick={() => patchSelectedStyle({ fontWeight: allBold ? 400 : 700 }, textItems)}><Bold size={14} /></button>
+                <button title="Italic (Ctrl+I)" aria-label="Italic" aria-pressed={allItalic} className={allItalic ? "active" : ""} onPointerDown={(e) => e.preventDefault()} onClick={() => patchSelectedStyle({ fontStyle: allItalic ? "normal" : "italic" }, textItems)}><Italic size={14} /></button>
+                <button title="Underline (Ctrl+U)" aria-label="Underline" aria-pressed={allUnderline} className={allUnderline ? "active" : ""} onPointerDown={(e) => e.preventDefault()} onClick={() => patchSelectedStyle({ underline: !allUnderline }, textItems)}><Underline size={14} /></button>
+                <button title="Strikethrough" aria-label="Strikethrough" aria-pressed={allStrike} className={allStrike ? "active" : ""} onPointerDown={(e) => e.preventDefault()} onClick={() => patchSelectedStyle({ strike: !allStrike }, textItems)}><Strikethrough size={14} /></button>
+              </div>
+              <label className="format-swatch" title="Text color"><Type size={13} /><i style={{ background: s.color }} /><input type="color" aria-label="Text color" value={s.color} onChange={(e) => patchSelectedStyle({ color: e.target.value }, textItems)} /></label>
+              <div className="format-group" role="group" aria-label="Text alignment">
+                {(["left", "center", "right"] as const).map((a) => { const Icon = a === "left" ? AlignLeft : a === "center" ? AlignCenter : AlignRight; return <button key={a} aria-label={`Align ${a}`} aria-pressed={s.textAlign === a} className={s.textAlign === a ? "active" : ""} onPointerDown={(e) => e.preventDefault()} onClick={() => patchSelectedStyle({ textAlign: a }, textItems)}><Icon size={14} /></button>; })}
+              </div>
+              <span className="format-divider" />
+            </>}
+            {lineItems.length > 0 && <label className="format-size-label">W<input className="format-size" aria-label="Line width" type="number" min={1} max={16} value={lineItems[0].style.strokeWidth} onChange={(e) => { const v = Number(e.target.value); if (Number.isFinite(v)) patchSelectedStyle({ strokeWidth: clamp(v, 1, 16) }, lineItems); }} /></label>}
+            <label className="format-swatch" title="Fill color"><PaintBucket size={13} /><i className={noFill ? "none" : ""} style={noFill ? {} : { background: s.fill }} /><input type="color" aria-label="Fill color" value={noFill ? "#ffffff" : s.fill} onChange={(e) => patchSelectedStyle({ fill: e.target.value })} /></label>
+            <label className="format-swatch" title="Border color"><Square size={12} /><i className={noStroke ? "none" : ""} style={noStroke ? {} : { background: s.stroke }} /><input type="color" aria-label="Border color" value={noStroke ? "#ffffff" : s.stroke} onChange={(e) => patchSelectedStyle({ stroke: e.target.value, strokeWidth: Math.max(1, s.strokeWidth) })} /></label>
+            {selectedOne?.type === "shape" && <select className="format-font geometry-select" aria-label="Shape" value={selectedOne.geometry ?? "rect"} onChange={(e) => patchElement(selectedOne.id, { geometry: e.target.value === "rect" ? undefined : e.target.value as CanvasElement["geometry"] })}><option value="rect">Rectangle</option>{Object.entries(SHAPE_GEOMETRIES).map(([geometry, { label }]) => <option key={geometry} value={geometry}>{label}</option>)}</select>}
+            <span className="format-divider" />
+            <button className="format-action" title="Bring to front" aria-label="Bring to front" onClick={() => edgeZOrder(true)}><BringToFront size={14} /></button>
+            <button className="format-action" title="Send to back" aria-label="Send to back" onClick={() => edgeZOrder(false)}><SendToBack size={14} /></button>
+            {selected.length > 1 && <button className="format-action" title="Group (Ctrl+G)" aria-label="Group" onClick={() => groupSelection()}><Group size={14} /></button>}
+            {selected.some((e) => e.groupId) && <button className="format-action" title="Ungroup (Ctrl+Shift+G)" aria-label="Ungroup" onClick={() => groupSelection(true)}><Ungroup size={14} /></button>}
+          </div>;
+        })()}
         <div className="workspace-scroll" ref={workspaceScrollRef}><div className="workspace-stage" style={{ width: pageW * scale, height: pageH * scale }}><div ref={pageRef} className="page-canvas" style={{ width: pageW, height: pageH, background: composePage(page,doc).background.color, transform: `scale(${scale})` }} onPointerDown={onCanvasDown} onDragOver={event=>{if(event.dataTransfer.types.includes("Files"))event.preventDefault();}} onDrop={event=>{const file=[...event.dataTransfer.files].find(file=>file.type.startsWith("image/"));if(file){event.preventDefault();replaceImageRef.current=null;insertImageFile(file);}}}>
           {page.masterId&&<div className="master-surface"><StaticPage page={{...page,elements:[]}} document={doc}/></div>}
           <svg className="connector-layer" viewBox={`0 0 ${pageW} ${pageH}`} aria-hidden="true"><defs><marker id="arrowhead" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto" markerUnits="strokeWidth"><path d="M0,0 L0,6 L9,3 z" fill="context-stroke" /></marker></defs>

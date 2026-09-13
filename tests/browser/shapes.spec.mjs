@@ -53,6 +53,30 @@ test('Ctrl+G and Ctrl+Shift+G group and ungroup the selection',async({page})=>{
  expect((await doc(page)).pages[0].elements.filter(e=>e.groupId)).toHaveLength(0);
 });
 
+test('format bar edits text style, fill and arrange across the selection',async({page})=>{
+ const bar=page.getByRole('toolbar',{name:'Formatting'});
+ await page.locator('.page-canvas').click({position:{x:4,y:4},force:true});
+ await expect(bar).not.toBeVisible();
+ await page.locator('[data-element-id="api_gateway"]').click();
+ await expect(bar).toBeVisible();
+ const w0=(await element(page)).style.fontWeight;
+ await bar.getByLabel('Bold').click();
+ expect((await element(page)).style.fontWeight).toBe(w0>=700?400:700);
+ await bar.getByLabel('Align center').click();
+ expect((await element(page)).style.textAlign).toBe('center');
+ await bar.getByLabel('Font size').fill('32');
+ expect((await element(page)).style.fontSize).toBe(32);
+ await bar.getByLabel('Fill color').evaluate(el=>{Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set.call(el,'#ff0066');el.dispatchEvent(new Event('input',{bubbles:true}));});
+ expect((await element(page)).style.fill).toBe('#ff0066');
+ const before=(await element(page)).z;
+ await bar.getByLabel('Bring to front').click();
+ expect((await element(page)).z).toBeGreaterThan(before);
+ await page.locator('[data-element-id="database"]').click({modifiers:['Shift']});
+ await bar.getByLabel('Group').click();
+ const d=await doc(page);
+ expect(d.pages[0].elements.filter(e=>e.groupId).length).toBeGreaterThanOrEqual(2);
+});
+
 test('Ctrl+] and Ctrl+[ move selection one z-order step',async({page})=>{
  const before=(await element(page)).z;
  const next=Math.min(...(await doc(page)).pages[0].elements.map(e=>e.z).filter(z=>z>before));
