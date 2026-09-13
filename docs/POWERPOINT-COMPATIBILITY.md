@@ -10,7 +10,7 @@ The six previously missing categories now have implementations, with bounded sco
 
 | Category | Implemented | Remaining boundary |
 |---|---|---|
-| PPTX import | Ordered slides, text runs and links, layout/master decorations, placeholder geometry fallback, images, tables, first bar/line chart series, notes, media and basic transitions | Approximations produce an import report. Original packages up to 8 MiB are retained for unchanged export; SmartArt/OLE, crop, full theme inheritance, complex groups and arbitrary timing are not fully converted into the editable model |
+| PPTX import | Ordered slides, text runs and links, layout/master decorations, placeholder geometry fallback, images, tables (merged cells expand to a grid), first bar/line chart series, notes, media, basic transitions, line spacing, letter tracking and supported preset geometry | Approximations produce an import report. Original packages up to 8 MiB are retained for unchanged export; SmartArt/OLE, crop, full theme inheritance, complex groups, merged-cell structure and arbitrary timing are not fully converted into the editable model |
 | Masters | Create from selection, link/apply to slides, edit shared text/geometry/background, save flattened portable templates | Basic text/rectangle/image masters export as linked native layouts. Complex masters flatten into editable slide objects. Full placeholder authoring is absent |
 | Rich text | Range-based emphasis, size, color, hyperlinks; inline replacement preserves runs; editable PPTX and HTML runs | Paragraph hierarchy, typography controls and scripts listed below remain incomplete |
 | Motion | Eight effects, click/with-previous/after-previous, delay/duration, order, linear movement, reduced motion | Native timing import/export for the supported behavior subset; actual PowerPoint playback remains unverified. Morph is absent |
@@ -59,7 +59,7 @@ Full PowerPoint parity remains unfinished. Native rendering execution, complete 
 | Text | Click/drag text box, multiline editing, Enter, Ctrl/Cmd+Enter, Escape | Supported; text browser and geometry tests |
 | Text style | Whole-object controls plus mixed runs, selected-range formatting and hyperlinks | Model/export tests and rich-text browser regression |
 | Paragraph | Horizontal/vertical alignment, line spacing, tracking, padding, bullet/numbered text lines | Supported; formatting unit and browser tests. Lists are stored as plain-text markers |
-| Shapes | Rectangle, rounded rectangle, ellipse, fill/border, radius, opacity, text | Supported; insertion browser tests and schema tests |
+| Shapes | Rectangle, rounded rectangle, ellipse plus a preset-geometry gallery (triangles, polygons, stars, arrows, chevrons, callouts, cloud, heart, moon, donut and more — see `app/geometry-shapes.ts`); fill/border, radius, opacity, text | Supported; palette/inspector browser tests and schema tests. Geometry scales to the frame; native adjustment handles are not implemented |
 | Connectors | Straight line/arrow, dashed/solid, width/color, endpoint dragging and attachment | Supported; browser drawing/nudge/copy and rotated-anchor unit tests |
 | Images | PNG/JPEG/WebP/GIF file insertion, paste/drop, replacement, alt text; 2 MB limit | Supported; upload/replace/size browser test. OS clipboard/drop combinations not exhaustively verified |
 | KPI | Label, value, trend, accent color; deterministic visual card | Supported; insertion browser test; property rendering manually inspected |
@@ -86,7 +86,7 @@ Full PowerPoint parity remains unfinished. Native rendering execution, complete 
 |---|---|---|
 | PaperDOM JSON | Import and export | Canonical lossless format for this model; validated schema and round trips |
 | Library JSON | Import and export | Linked definitions, properties, tokens and slide templates; declarative primitives only |
-| PowerPoint `.pptx` | Export | Native editable text/shapes/tables/charts/images, connectors, speaker notes and hidden slides. Rich runs, hyperlinks and audio/video are included. Basic masters retain native layout linkage; other masters and components flatten into editable primitives |
+| PowerPoint `.pptx` | Export | Native editable text/shapes/tables/charts/images, connectors, speaker notes and hidden slides. Preset geometry exports as native `prstGeom` shapes. Rich runs, hyperlinks, line spacing, character tracking and audio/video are included. Basic masters retain native layout linkage; other masters and components flatten into editable primitives |
 | PowerPoint `.pptx` | Import | Implemented subset above. 30 MB compressed, 100 MB expanded, at most 10,000 ZIP entries; XML entities rejected. Not a full fidelity guarantee |
 | PowerPoint rendering | OOXML structural checks | ZIP entries, editable object XML, chart relationships, notes, embedded images, emphasis and rotation are tested. Opening/rendering in Windows/macOS PowerPoint has **not** been verified |
 | PowerPoint fidelity | Partial | One global slide size based on the first slide; mixed sizes fit within it. Fonts may substitute. Text wrapping, spacing, opacity, table/chart styles and rounded corners can differ. Transitions, native object timing, media trim/loop settings and group metadata are not exported. Hex colors are supported; other CSS colors fall back. External/WebP images fail explicitly; embed PNG/JPEG/GIF/SVG first |
@@ -101,7 +101,7 @@ Full PowerPoint parity remains unfinished. Native rendering execution, complete 
 |---|---|
 | Master design | Full native placeholder/layout authoring, theme font/color variants, background styles, design suggestions, footer/date/slide-number fields |
 | Rich text | Native paragraph/list hierarchy, tabs/rulers, slide actions, superscript/subscript, text highlights, columns, vertical/RTL text controls, equations/symbol UI, font embedding, translation |
-| Shapes and diagrams | Full shape gallery, freeform drawing, merge/subtract shapes, editable points, SmartArt, WordArt, 3D models, ink-to-shape, advanced shadows/gradients/reflections |
+| Shapes and diagrams | Adjustment handles on preset geometry, freeform drawing, merge/subtract shapes, editable points, SmartArt, WordArt, 3D models, ink-to-shape, advanced shadows/gradients/reflections. Unsupported preset geometry imports as a rectangle with an explicit warning |
 | Images | Crop/mask/focal point, correction/recolor, background removal, compression, online/stock search, SVG editing, screenshot capture |
 | Tables | Cell/row/column UI, merging/splitting, formulas, cell-level styling, Excel-linked data, large-data virtualization |
 | Charts | Multiple series, all chart types, axes/grid customization, legends, linked Excel workbooks, data labels/formatting controls, trendlines, chart animations |

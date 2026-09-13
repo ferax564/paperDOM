@@ -111,9 +111,18 @@ window.paperdom.transaction({
 | `Ctrl/Cmd + Z` | Undo |
 | `Ctrl/Cmd + Shift + Z` or `Ctrl/Cmd + Y` | Redo |
 | `Ctrl/Cmd + D` | Duplicate selection |
+| `Ctrl/Cmd + G` / `Ctrl/Cmd + Shift + G` | Group / ungroup selection |
+| `Ctrl/Cmd + ]` / `Ctrl/Cmd + [` | Bring forward / send backward one level |
+| `Ctrl/Cmd + A` | Select all objects on the slide |
+| `Ctrl/Cmd + C/X/V` | Copy, cut, and paste objects |
 | `Delete` / `Backspace` | Delete selection |
 | Arrow keys | Nudge selection (`Shift` for 10 px) |
+| `Space` (hold) | Temporary pan tool |
+| `F5` / `Shift + F5` | Present from the first / current slide |
+| `B` (while presenting) | Toggle black screen |
 | `Alt` while moving/resizing | Temporarily ignore guides |
+
+The Shapes rail button opens a preset-geometry gallery (triangles, arrows, stars, callouts and more) that exports to PowerPoint as native shapes.
 
 ## Project structure
 

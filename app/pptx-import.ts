@@ -4,7 +4,9 @@ import JSZip from 'jszip';
 import { baseStyle } from './component-library.ts';
 import { parsePaperDOMDocument, type CanvasElement, type CanvasPage, type PaperDOMDocument } from './document-model.ts';
 import { safeLink, type TextRun } from './advanced-model.ts';
+import { SHAPE_GEOMETRIES, type ShapeGeometry } from './geometry-shapes.ts';
 import { randomId } from './ids.ts';
+const RECT_FAMILY = /^(rect|roundRect|round1Rect|round2SameRect|round2DiagRect|snip1Rect|snip2SameRect|snip2DiagRect|snipRoundRect|ellipse|line)$/;
 const EMU = 9525;
 const children = (n: Element | Document | null, name: string) => n ? Array.from(n.children).filter(e => e.localName === name) : [];
 const first = (n: Element | Document | null, name: string): Element | null => n?.getElementsByTagNameNS('*', name)[0] ?? null;
@@ -104,7 +106,11 @@ export async function importPowerPoint(buffer: ArrayBuffer, fileName = 'Presenta
                 const frame = { x: ox + number(off, 'x') / EMU * sx, y: oy + number(off, 'y') / EMU * sy, w: Math.max(1, number(ext, 'cx', EMU * 200) / EMU * sx), h: Math.max(1, number(ext, 'cy', EMU * 80) / EMU * sy), rotation: number(x, 'rot') / 60000 };
                 const nv = first(n, 'cNvPr'), id = `${prefix}_${attr(nv, 'id') || output.length}`, name = attr(nv, 'name') || 'Object';
                 const geom = attr(first(sp, 'prstGeom'), 'prst'), line = children(sp, 'ln')[0] ?? null;
-                const e: CanvasElement = { id, name, type: geom === 'ellipse' ? 'ellipse' : n.localName === 'pic' ? 'image' : n.localName === 'cxnSp' ? 'connector' : 'shape', frame, z: output.length + 1, groupId: group, style: { ...baseStyle, fill: children(sp, 'noFill').length ? 'transparent' : paint(children(sp, 'solidFill')[0] ?? null, 'transparent'), stroke: line && !first(line, 'noFill') ? paint(line, '#172033') : 'transparent', strokeWidth: line ? number(line, 'w', 12700) / EMU : 0, radius: geom === 'roundRect' ? 12 : 0, padding: 0 } };
+                const e: CanvasElement = { id, name, type: geom === 'ellipse' ? 'ellipse' : n.localName === 'pic' ? 'image' : n.localName === 'cxnSp' ? 'connector' : 'shape', frame, z: output.length + 1, groupId: group, style: { ...baseStyle, fill: children(sp, 'noFill').length ? 'transparent' : paint(children(sp, 'solidFill')[0] ?? null, 'transparent'), stroke: line && !first(line, 'noFill') ? paint(line, '#172033') : 'transparent', strokeWidth: line ? number(line, 'w', 12700) / EMU : 0, radius: /^round/.test(geom) ? 12 : 0, padding: 0 } };
+                if (n.localName === 'sp' && geom in SHAPE_GEOMETRIES)
+                    e.geometry = geom as ShapeGeometry;
+                else if (n.localName === 'sp' && geom && !RECT_FAMILY.test(geom))
+                    warnings.add(`Preset geometry "${geom}" is approximated as a rectangle.`);
                 if (attr(x, 'flipH') === '1' || attr(x, 'flipV') === '1')
                     warnings.add('Flipped objects are imported with their bounding frame; flip transforms are not retained.');
                 if (first(sp, 'custGeom'))
@@ -122,6 +128,14 @@ export async function importPowerPoint(buffer: ArrayBuffer, fileName = 'Presenta
                         if (pi === 0) {
                             e.style.textAlign = attr(ppr, 'algn') === 'ctr' ? 'center' : attr(ppr, 'algn') === 'r' ? 'right' : 'left';
                             e.style.fontSize = number(defaultR, 'sz', 1800) / 100 * 96 / 72;
+                            const lnSpc = first(ppr, 'lnSpc'), pct = first(lnSpc, 'spcPct'), pts = first(lnSpc, 'spcPts');
+                            if (pct)
+                                e.style.lineHeight = Math.max(.3, number(pct, 'val', 100000) / 100000);
+                            else if (pts)
+                                e.style.lineHeight = Math.max(.3, number(pts, 'val', 0) / 100 / (e.style.fontSize * .75 || 1));
+                            const tracking = Number(attr(defaultR, 'spc'));
+                            if (Number.isFinite(tracking) && tracking)
+                                e.style.letterSpacing = tracking / 100 * 96 / 72;
                         }
                         const bullet = first(ppr, 'buChar');
                         if (bullet)
@@ -148,7 +162,7 @@ export async function importPowerPoint(buffer: ArrayBuffer, fileName = 'Presenta
                     e.runs = runs;
                     e.content = { text: runs.map(r => r.text).join('') };
                     e.name = e.content.text?.trim().slice(0, 40) || name;
-                    if (e.style.fill === 'transparent' && e.style.stroke === 'transparent')
+                    if (!e.geometry && e.style.fill === 'transparent' && e.style.stroke === 'transparent')
                         e.type = 'text';
                     const bp = first(body, 'bodyPr');
                     e.style.verticalAlign = attr(bp, 'anchor') === 'ctr' ? 'middle' : attr(bp, 'anchor') === 'b' ? 'bottom' : 'top';
@@ -187,7 +201,19 @@ export async function importPowerPoint(buffer: ArrayBuffer, fileName = 'Presenta
                 if (n.localName === 'graphicFrame') {
                     const table = first(n, 'tbl'), chart = first(n, 'chart');
                     if (table) {
-                        const rows = children(table, 'tr').map(row => children(row, 'tc').map(c => all(c, 't').map(t => t.textContent ?? '').join('')));
+                        let merged = false;
+                        const rows = children(table, 'tr').map(row => children(row, 'tc').flatMap(c => {
+                            const text = all(c, 't').map(t => t.textContent ?? '').join(''), span = Math.max(1, Math.min(20, number(c, 'gridSpan', 1)));
+                            if (c.hasAttribute('hMerge') || c.hasAttribute('vMerge')) {
+                                merged = true;
+                                return Array.from({ length: span }, () => '');
+                            }
+                            if (span > 1)
+                                merged = true;
+                            return [text, ...Array.from({ length: span - 1 }, () => '')];
+                        }));
+                        if (merged)
+                            warnings.add('Merged table cells are expanded into a simple grid.');
                         if (rows.length > 50 || rows.some(r => r.length > 20)) {
                             warnings.add('An oversized table was omitted.');
                             continue;

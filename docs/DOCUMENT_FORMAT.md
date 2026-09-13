@@ -38,7 +38,7 @@ The editor currently creates 16:9 pages at 1280 × 720, although the parser acce
 
 ## Element
 
-Supported `type` values are `text`, `shape`, `ellipse`, `connector`, `line`, `image`, and `plugin`.
+Supported `type` values are `text`, `shape`, `ellipse`, `connector`, `line`, `image`, `plugin`, `component`, `table`, `chart`, `audio`, and `video`.
 
 ```json
 {
@@ -72,7 +72,9 @@ Supported `type` values are `text`, `shape`, `ellipse`, `connector`, `line`, `im
 
 `locked` and `hidden` are optional booleans. Frame and style numbers must be finite. Opacity must be between 0 and 1. Non-line elements require positive width and height.
 
-Text is plain text and may contain `\n`. A style applies to the whole element; range-level rich text is not part of version 0.1.
+`shape` elements may carry an optional `geometry` field naming an OOXML preset geometry (`triangle`, `diamond`, `star5`, `chevron`, `rightArrow`, `wedgeRectCallout`, …). The supported set lives in `app/geometry-shapes.ts`; preset geometry scales to the element frame and maps to `prstGeom` on PowerPoint export/import.
+
+Text is plain text and may contain `\n`. A style applies to the whole element; optional `runs` hold range-level rich text (emphasis, size, color, font and hyperlinks) whose concatenated text must equal `content.text`.
 
 ## Lines and connectors
 

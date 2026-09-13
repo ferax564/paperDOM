@@ -28,7 +28,9 @@ export type PreviewResult = TransactionPreview | Extract<AgentTransactionResult,
 
 export function getDocumentOutline(document: PaperDOMDocument) {
   return structuredClone({ id: document.id, title: document.title, revision: document.revision,
-    pages: document.pages.map((page, index) => ({ id: page.id, name: page.name, index, notes: page.notes ?? "", size: page.size, elementCount: page.elements.length })) });
+    pages: document.pages.map((page, index) => ({ id: page.id, name: page.name, index, notes: page.notes ?? "", size: page.size, elementCount: page.elements.length,
+      hidden: Boolean(page.hidden), transition: page.transition, advanceSeconds: page.advanceSeconds, masterId: page.masterId, animationCount: page.animations?.length ?? 0 })),
+    masters: document.masters?.map((master, index) => ({ id: master.id, name: master.name, index, elementCount: master.elements.length })) ?? [] });
 }
 
 /** All filters are ANDed. Text is a case-insensitive literal substring, never code or regex. */
@@ -46,11 +48,18 @@ export function queryNodes(document: PaperDOMDocument, query: NodeQuery = {}) {
 export function summarizeScene(document: PaperDOMDocument, pageId: string) {
   const page = document.pages.find((page) => page.id === pageId) ?? document.pages[0];
   return structuredClone({ revision: document.revision,
-    page: { id: page.id, name: page.name, size: [page.size.width, page.size.height] },
+    page: { id: page.id, name: page.name, size: [page.size.width, page.size.height], notes: page.notes ?? "", hidden: Boolean(page.hidden),
+      transition: page.transition, advanceSeconds: page.advanceSeconds, masterId: page.masterId,
+      animations: page.animations?.map((cue) => ({ id: cue.id, elementId: cue.elementId, effect: cue.effect, trigger: cue.trigger })) ?? [] },
     elements: page.elements.filter((e) => !e.hidden && !["connector", "line"].includes(e.type)).map((e) => ({
-      id: e.id, type: e.type, name: e.name, definitionId: e.component?.definitionId, bounds: [e.frame.x, e.frame.y, e.frame.w, e.frame.h], text: e.content?.text, props: e.type === "component" ? e.component?.props : e.type === "plugin" ? e.content : undefined,
+      id: e.id, type: e.type, name: e.name, definitionId: e.component?.definitionId, geometry: e.geometry, bounds: [e.frame.x, e.frame.y, e.frame.w, e.frame.h],
+      rotation: e.frame.rotation || undefined, locked: e.locked, groupId: e.groupId, text: e.content?.text,
+      table: e.table ? { rows: e.table.rows.length, columns: e.table.rows[0]?.length ?? 0, header: e.table.header } : undefined,
+      chart: e.chart ? { kind: e.chart.kind, title: e.chart.title, points: e.chart.values.length } : undefined,
+      media: e.media ? { src: e.media.src.slice(0, 120), autoplay: e.media.autoplay } : undefined,
+      props: e.type === "component" ? e.component?.props : e.type === "plugin" ? e.content : undefined,
     })),
-    connections: page.elements.filter((e) => !e.hidden && e.type === "connector").map((e) => ({ id: e.id, from: e.from, to: e.to, kind: "arrow" })),
+    connections: page.elements.filter((e) => !e.hidden && ["connector", "line"].includes(e.type)).map((e) => ({ id: e.id, from: e.from, to: e.to, kind: e.type === "connector" ? "arrow" : "line" })),
     plugins: document.plugins,
   });
 }
@@ -134,9 +143,9 @@ export function isPreviewCurrent(document: PaperDOMDocument, preview: Transactio
 }
 
 export const agentCapabilities = () => ({
-  apiVersion: "0.3", documentVersions: ["0.1"],
-  operations: ["createElement", "patchElement", "deleteElements", "replaceText", "createPage", "patchPage", "deletePage", "reorderPages", "setLibrary", "setTheme"],
-  features: ["outline", "query", "dry-run", "diff", "warnings", "attribution", "optimistic-concurrency", "components", "templates", "themes"],
+  apiVersion: "0.4", documentVersions: ["0.1"],
+  operations: ["patchDocument", "createElement", "patchElement", "deleteElements", "replaceText", "createPage", "duplicatePage", "patchPage", "deletePage", "reorderPages", "duplicateElements", "moveElements", "setLibrary", "setTheme", "setMasters"],
+  features: ["outline", "query", "dry-run", "diff", "warnings", "attribution", "optimistic-concurrency", "components", "templates", "themes", "masters", "preset-geometry"],
 });
 
 /** Adapters own persistence. A closure reads the latest document even between React renders. */

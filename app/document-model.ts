@@ -1,5 +1,8 @@
 import { MAX_PPTX_SOURCE_BYTES, type PowerPointSource } from './pptx-source.ts';
 import {safeLink,safeMedia,replaceRunText,type TextRun,type AnimationCue,type MediaData} from './advanced-model.ts';
+import { copyElements, endpointPoint } from './presentation-tools.ts';
+import { SHAPE_GEOMETRIES, type ShapeGeometry } from './geometry-shapes.ts';
+import { randomId } from './ids.ts';
 import type { TableData, ChartData } from './presentation-tools.ts';
 import { validateLibrary, validateTheme, validateInstance, defaultTheme, type ComponentLibrary, type ComponentInstance, type Theme } from './component-library.ts';
 export type Kind = "text" | "shape" | "ellipse" | "connector" | "line" | "image" | "plugin" | "component" | "table" | "chart" | "audio" | "video";
@@ -47,6 +50,7 @@ export type CanvasElement = {
   style: ElementStyle;
   locked?: boolean;
   hidden?: boolean;
+  geometry?: ShapeGeometry;
   from?: Endpoint;
   to?: Endpoint;
   content?: ElementContent;
@@ -90,14 +94,18 @@ export type PaperDOMDocument = {
 };
 
 export type AgentOperation =
+  | { op: "patchDocument"; patch: { title?: string } }
   | {op:"setMasters";masters:CanvasPage[]}
   | { op: "setLibrary"; library: ComponentLibrary }
   | { op: "setTheme"; theme: Theme }
   | { op: "createPage"; page: CanvasPage; index?: number }
+  | { op: "duplicatePage"; pageId: string; id?: string; name?: string; index?: number }
   | { op: "patchPage"; pageId: string; patch: Partial<Pick<CanvasPage,"name"|"notes"|"background"|"size"|"hidden"|"transition"|"advanceSeconds"|"masterId"|"animations"|"inheritBackground">> }
   | { op: "deletePage"; pageId: string }
   | { op: "reorderPages"; pageIds: string[] }
   | { op: "createElement"; pageId?: string; element: CanvasElement }
+  | { op: "duplicateElements"; pageId?: string; ids: string[]; offset?: number; idPrefix?: string }
+  | { op: "moveElements"; pageId?: string; toPageId: string; ids: string[] }
   | { op: "patchElement"; pageId?: string; elementId: string; patch: CanvasElementPatch }
   | { op: "deleteElements"; pageId?: string; ids: string[] }
   | { op: "replaceText"; pageId?: string; elementId: string; text: string };
@@ -229,6 +237,7 @@ function validateElement(element: unknown, elementIds: Set<string>, path: string
   if (!isFiniteNumber(element.z)) return `${path}.z must be finite`;
   if (element.locked !== undefined && typeof element.locked !== "boolean") return `${path}.locked must be boolean`;
   if (element.hidden !== undefined && typeof element.hidden !== "boolean") return `${path}.hidden must be boolean`;
+  if (element.geometry !== undefined && (element.type !== "shape" || typeof element.geometry !== "string" || !(element.geometry in SHAPE_GEOMETRIES))) return `${path}.geometry must name a preset geometry on a shape element`;
 
   if (element.groupId !== undefined && !isNonEmptyString(element.groupId)) return `${path}.groupId must be a nonempty string`;
   if (element.aspectLocked !== undefined && typeof element.aspectLocked !== 'boolean') return `${path}.aspectLocked must be boolean`;
@@ -453,7 +462,7 @@ export function applyDocumentTransaction(
   const operations = payload.operations as unknown[];
   const next: PaperDOMDocument = structuredClone(document);
   const changed = new Set<string>();
-  const supportedOperations = new Set(["createElement", "patchElement", "deleteElements", "replaceText", "createPage", "patchPage", "deletePage", "reorderPages", "setLibrary", "setTheme", "setMasters"]);
+  const supportedOperations = new Set(["patchDocument", "createElement", "patchElement", "deleteElements", "replaceText", "createPage", "duplicatePage", "patchPage", "deletePage", "reorderPages", "setLibrary", "setTheme", "setMasters", "duplicateElements", "moveElements"]);
 
   for (let index = 0; index < operations.length; index += 1) {
     const candidateOperation = operations[index];
@@ -461,6 +470,14 @@ export function applyDocumentTransaction(
       return transactionError(document, "invalid_operation", "Unsupported operation", index);
     }
     const operation: Record<string, unknown> = candidateOperation;
+    if (operation.op === "patchDocument") {
+      if (!isRecord(operation.patch) || Object.keys(operation.patch).some((key) => key !== "title") ||
+        (operation.patch.title !== undefined && typeof operation.patch.title !== "string")) {
+        return transactionError(document, "invalid_operation", "patchDocument supports title only", index);
+      }
+      if (operation.patch.title !== undefined) next.title = operation.patch.title;
+      continue;
+    }
     if(operation.op==="setMasters"){next.masters=structuredClone(operation.masters) as CanvasPage[];continue;}
     if (operation.op === "setLibrary") {
       const error = validateLibrary(operation.library, validateElement);
@@ -511,9 +528,42 @@ export function applyDocumentTransaction(
       next.pages = next.pages.filter((candidate) => candidate.id !== pageId);
       continue;
     }
+    if (operation.op === "duplicatePage") {
+      if (operation.id !== undefined && !isNonEmptyString(operation.id)) {
+        return transactionError(document, "invalid_operation", "duplicatePage id must be a non-empty string", index);
+      }
+      if (operation.name !== undefined && typeof operation.name !== "string") {
+        return transactionError(document, "invalid_operation", "duplicatePage name must be a string", index);
+      }
+      const newId = (operation.id as string | undefined) ?? randomId("page");
+      if (next.pages.some((candidate) => candidate.id === newId)) {
+        return transactionError(document, "invalid_operation", `Page id ${newId} already exists`, index);
+      }
+      const sourceIndex = next.pages.indexOf(page);
+      const position = operation.index === undefined ? sourceIndex + 1 : operation.index;
+      if (!Number.isInteger(position) || (position as number) < 0 || (position as number) > next.pages.length) {
+        return transactionError(document, "invalid_operation", "Page index is out of range", index);
+      }
+      const copy = structuredClone(page);
+      const idMap = new Map(copy.elements.map((element) => [element.id, randomId(element.type)]));
+      copy.elements.forEach((element) => {
+        element.id = idMap.get(element.id)!;
+        for (const side of ["from", "to"] as const) {
+          if (element[side]?.elementId) element[side] = { ...element[side], elementId: idMap.get(element[side]!.elementId!) ?? element[side]!.elementId };
+        }
+      });
+      const groupMap = new Map([...new Set(copy.elements.filter((element) => element.groupId).map((element) => element.groupId!))].map((groupId) => [groupId, randomId("group")]));
+      copy.elements.forEach((element) => { if (element.groupId) element.groupId = groupMap.get(element.groupId); });
+      copy.animations = copy.animations?.map((cue) => ({ ...cue, id: randomId("anim"), elementId: idMap.get(cue.elementId) ?? cue.elementId }));
+      copy.id = newId;
+      copy.name = (operation.name as string | undefined) ?? `${page.name} copy`;
+      next.pages.splice(position as number, 0, copy);
+      copy.elements.forEach((element) => changed.add(element.id));
+      continue;
+    }
     if (operation.op === "patchPage") {
       if (!isRecord(operation.patch) || Object.keys(operation.patch).some((key) => !["name", "notes", "background", "size", "hidden", "transition", "advanceSeconds", "masterId", "animations", "inheritBackground"].includes(key))) {
-        return transactionError(document, "invalid_operation", "patchPage supports name, notes, background, size, hidden, transition, and advanceSeconds", index);
+        return transactionError(document, "invalid_operation", "patchPage supports name, notes, background, size, hidden, transition, advanceSeconds, masterId, animations, and inheritBackground", index);
       }
       Object.assign(page, structuredClone(operation.patch));
       continue;
@@ -528,6 +578,76 @@ export function applyDocumentTransaction(
       }
       page.elements.push(element);
       changed.add(element.id);
+      continue;
+    }
+
+    if (operation.op === "duplicateElements") {
+      if (!Array.isArray(operation.ids) || !operation.ids.length || operation.ids.some((id) => !isNonEmptyString(id))) {
+        return transactionError(document, "invalid_operation", "duplicateElements requires a non-empty string id array", index);
+      }
+      if (operation.offset !== undefined && !isFiniteNumber(operation.offset)) {
+        return transactionError(document, "invalid_operation", "duplicateElements offset must be finite", index);
+      }
+      if (operation.idPrefix !== undefined && !isNonEmptyString(operation.idPrefix)) {
+        return transactionError(document, "invalid_operation", "duplicateElements idPrefix must be a non-empty string", index);
+      }
+      const missing = (operation.ids as string[]).filter((id) => !page.elements.some((item) => item.id === id));
+      if (missing.length) return transactionError(document, "invalid_operation", `Elements not found: ${missing.join(", ")}`, index);
+      const prefix = (operation.idPrefix as string | undefined) ?? randomId("copy");
+      const copies = copyElements(page, operation.ids as string[], prefix, isFiniteNumber(operation.offset) ? (operation.offset as number) : 20);
+      if (copies.some((copy) => next.pages.some((candidate) => candidate.elements.some((item) => item.id === copy.id)))) {
+        return transactionError(document, "invalid_operation", "Duplicate element id collision", index);
+      }
+      page.elements.push(...copies);
+      copies.forEach((copy) => changed.add(copy.id));
+      continue;
+    }
+
+    if (operation.op === "moveElements") {
+      if (!isNonEmptyString(operation.toPageId)) {
+        return transactionError(document, "invalid_operation", "moveElements requires toPageId", index);
+      }
+      if (!Array.isArray(operation.ids) || !operation.ids.length || operation.ids.some((id) => !isNonEmptyString(id))) {
+        return transactionError(document, "invalid_operation", "moveElements requires a non-empty string id array", index);
+      }
+      const target = next.pages.find((candidate) => candidate.id === operation.toPageId);
+      if (!target) return transactionError(document, "invalid_operation", `Page ${operation.toPageId} was not found`, index);
+      const moving = new Set(operation.ids as string[]);
+      const missing = [...moving].filter((id) => !page.elements.some((item) => item.id === id));
+      if (missing.length) return transactionError(document, "invalid_operation", `Elements not found: ${missing.join(", ")}`, index);
+      const moved = page.elements.filter((item) => moving.has(item.id));
+      const samePage = target === page;
+      if (!samePage) {
+        const snap = structuredClone(page.elements);
+        for (const element of moved) {
+          for (const side of ["from", "to"] as const) {
+            const endpoint = element[side];
+            if (endpoint?.elementId && !moving.has(endpoint.elementId)) {
+              element[side] = { ...endpointPoint(endpoint, snap) };
+            }
+          }
+        }
+        for (const element of page.elements) {
+          if (moving.has(element.id)) continue;
+          for (const side of ["from", "to"] as const) {
+            const endpoint = element[side];
+            if (endpoint?.elementId && moving.has(endpoint.elementId)) {
+              element[side] = { ...endpointPoint(endpoint, snap) };
+              changed.add(element.id);
+            }
+          }
+        }
+      }
+      page.elements = page.elements.filter((item) => !moving.has(item.id));
+      target.elements.push(...moved);
+      if (!samePage) {
+        const carried = page.animations?.filter((cue) => moving.has(cue.elementId)) ?? [];
+        if (carried.length) {
+          page.animations = page.animations!.filter((cue) => !moving.has(cue.elementId));
+          target.animations = [...(target.animations ?? []), ...carried];
+        }
+      }
+      moved.forEach((element) => changed.add(element.id));
       continue;
     }
 

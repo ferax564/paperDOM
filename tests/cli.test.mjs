@@ -32,3 +32,18 @@ test("CLI validates, previews, and applies without overwriting its input or exis
     assert.equal(cli("unknown", source).status, 1);
   } finally { await rm(dir, { recursive: true, force: true }); }
 });
+
+test("CLI exports PowerPoint and standalone HTML without overwriting", async () => {
+  const dir = await mkdtemp(join(tmpdir(), "paperdom-cli-export-"));
+  try {
+    const source = join(dir, "document.json");
+    await writeFile(source, JSON.stringify(documentFixture()));
+    const pptx = join(dir, "deck.pptx"), html = join(dir, "deck.html");
+    assert.equal(cli("export-pptx", source, pptx).status, 0);
+    assert.equal((await readFile(pptx)).subarray(0, 2).toString(), "PK");
+    assert.equal(cli("export-html", source, html).status, 0);
+    assert.match(await readFile(html, "utf8"), /<!doctype html>/);
+    assert.equal(cli("export-pptx", source, pptx).status, 1);
+    assert.equal(cli("export-html", source, html).status, 1);
+  } finally { await rm(dir, { recursive: true, force: true }); }
+});

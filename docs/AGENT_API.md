@@ -1,6 +1,6 @@
 # Agent API and headless CLI
 
-The browser exposes `window.paperdom` (`window.canvasdoc` remains a compatibility alias). The same transaction kernel and read/preview functions run in Node without React, a browser, or a server. Document format **0.1** remains backward-compatible; capability discovery reports API **0.2**.
+The browser exposes `window.paperdom` (`window.canvasdoc` remains a compatibility alias). The same transaction kernel and read/preview functions run in Node without React, a browser, or a server — including an MCP stdio server (`scripts/paperdom-mcp.mjs`). Document format **0.1** remains backward-compatible; capability discovery reports API **0.4**.
 
 ## Read and discover
 
@@ -8,10 +8,10 @@ The browser exposes `window.paperdom` (`window.canvasdoc` remains a compatibilit
 const api = window.paperdom;
 api.capabilities();
 const document = api.getDocument();
-api.getDocumentOutline(); // ordered page ids, names, sizes, notes, counts
+api.getDocumentOutline(); // ordered page ids, names, sizes, notes, transitions, masters, counts
 api.getPage("page_architecture"); // clone or null
 api.queryNodes({ type: "text", text: "architecture", hidden: false });
-api.sceneSummary(); // current page, visible elements, arrows, plugins
+api.sceneSummary(); // current page: visible elements, geometry, tables/charts/media, connections, animations
 api.audit();
 ```
 
@@ -63,14 +63,21 @@ Failures return `ok: false`, `error`, `revision`, `message`, and optionally `ope
 
 | Operation | Fields and behavior |
 | --- | --- |
+| `patchDocument` | `patch` containing only `title`. Updates document metadata. |
 | `replaceText` | `elementId`, `text`, optional `pageId`. Updates text and name of text/shape/ellipse elements. |
-| `patchElement` | `elementId`, `patch`, optional `pageId`. Deep-merges frame/style/content; preserves id. |
-| `createElement` | Complete valid `element`, optional `pageId`. Element ids must be globally unique. |
+| `patchElement` | `elementId`, `patch`, optional `pageId`. Deep-merges frame/style/content; preserves id. Also covers `geometry`, `locked`, `hidden`, `groupId`, `z`, `table`, `chart`, `media`, `runs`, and connector endpoints. |
+| `createElement` | Complete valid `element`, optional `pageId`. Element ids must be globally unique. `shape` elements accept `geometry` — an OOXML preset name such as `star5`, `chevron`, or `diamond` (see `app/geometry-shapes.ts` for the supported set). |
+| `duplicateElements` | `ids`, optional `pageId`, `offset` (default 20), `idPrefix`. Clones elements with fresh ids; connector endpoints and groups are remapped to the copies. |
+| `moveElements` | `ids`, `toPageId`, optional `pageId`. Moves elements between slides. Endpoints that would dangle become fixed points; animation cues follow their elements. |
 | `deleteElements` | `ids`, optional `pageId`. Removes existing elements and attached connectors atomically. |
 | `createPage` | Complete `page`, optional zero-based `index` (default append). Page and element ids must be unique. |
-| `patchPage` | `pageId`, `patch` containing only `name`, `notes`, and/or `background: { color }`. Cannot replace ids/elements/dimensions. |
+| `duplicatePage` | `pageId`, optional `id`, `name`, `index` (default after the source). Deep-copies the slide with fresh element, connector, group and animation ids. |
+| `patchPage` | `pageId`, `patch` containing only `name`, `notes`, `background`, `size`, `hidden`, `transition`, `advanceSeconds`, `masterId`, `animations`, or `inheritBackground`. Cannot replace ids/elements. |
 | `deletePage` | `pageId`. Removes the page and its elements; cannot delete the last page. |
 | `reorderPages` | `pageIds` containing each existing page id exactly once. |
+| `setLibrary` | Complete `library` object. Installs component definitions and templates. |
+| `setTheme` | Complete `theme` object. Applies a design theme to the document. |
+| `setMasters` | Complete `masters` array. Replaces all slide masters. |
 
 Create a page and add elements to its id in the same transaction. Use 1280 × 720 for the current editor canvas. Notes are optional plain text, retained in JSON and displayed in outline/review; a full presenter-notes view is not implemented. Omitting element-operation `pageId` targets the active browser page or the first CLI page.
 
@@ -86,7 +93,7 @@ const preview = previewTransaction(parsed.document, proposal, parsed.document.pa
   "2026-09-05T10:00:00.000Z"); // explicit time makes output reproducible
 ```
 
-`createAgentAPI({ getDocument, getPageId, commit, isBusy?, propose? })` provides an adapter for other hosts. `commit` must synchronously update the host's canonical document. The host owns persistence and history. This is a source module, not yet a published npm SDK, HTTP API, or MCP server.
+`createAgentAPI({ getDocument, getPageId, commit, isBusy?, propose? })` provides an adapter for other hosts. `commit` must synchronously update the host's canonical document. The host owns persistence and history. This is a source module, not yet a published npm SDK or HTTP API.
 
 ## CLI
 
@@ -97,10 +104,22 @@ npm run cli -- outline deck.paperdom.json
 npm run cli -- query deck.paperdom.json query.json
 npm run cli -- preview deck.paperdom.json proposal.json
 npm run cli -- apply deck.paperdom.json proposal.json updated.paperdom.json
+npm run cli -- export-pptx deck.paperdom.json deck.pptx
+npm run cli -- export-html deck.paperdom.json deck.html
 ```
 
-The CLI consumes UTF-8 JSON and emits JSON. Failed validation/transactions exit with code 1. `apply` creates a new output file exclusively and refuses to overwrite existing files, including its input. Preview never writes a document. Use `node --experimental-strip-types scripts/paperdom.mjs ...` directly for machine-readable stdout without npm's script banner. Node >=22.13 is required; no build or dependencies are needed for these headless commands.
+The CLI consumes UTF-8 JSON and emits JSON. Failed validation/transactions exit with code 1. `apply` and the export commands create a new output file exclusively and refuse to overwrite existing files, including their input. Preview never writes a document. PPTX import requires DOM parsing and therefore runs in the browser (or Playwright), not the CLI. Use `node --experimental-strip-types scripts/paperdom.mjs ...` directly for machine-readable stdout without npm's script banner. Node >=22.13 is required; no build or dependencies are needed for these headless commands.
+
+## MCP server
+
+`scripts/paperdom-mcp.mjs` exposes the same kernel over the Model Context Protocol (stdio JSON-RPC):
+
+```bash
+node --experimental-strip-types scripts/paperdom-mcp.mjs deck.paperdom.json
+```
+
+Start it without a file for an in-memory blank deck. It serves `get_document`, `get_outline`, `get_page`, `query`, `scene_summary`, `audit`, `capabilities`, `preview_transaction`, `apply_transaction`, `export_pptx`, and `export_html` tools. `apply_transaction` validates the complete document, enforces `expectedRevision`, and writes the document file back atomically; requests are serialized so mutations never interleave. Point any MCP-aware client at the command above to give an agent transactional control of a deck file.
 
 ## Reusable library extension
 
-See the [component library contract](component-library.md) for embedded `library` and `theme` fields, the `component` element kind, `setLibrary` / `setTheme` transactions, and the component/template agent API (version 0.3).
+See the [component library contract](component-library.md) for embedded `library` and `theme` fields, the `component` element kind, `setLibrary` / `setTheme` transactions, and the component/template agent API.

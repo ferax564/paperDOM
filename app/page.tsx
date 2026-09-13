@@ -150,7 +150,20 @@ const toolGroups = [
    { id: "arrow", label: "Arrow", icon: MoveRight }, { id: "line", label: "Line", icon: Minus }, { id: "image", label: "Image", icon: ImageIcon }, { id: "plugin", label: "KPI plugin", icon: Puzzle }],
 ] as const;
 
+import { SHAPE_GEOMETRIES, shapeGeometryLabel, shapeGeometryPath } from './geometry-shapes.ts';
+import { Shapes } from "lucide-react";
+
 function endpointPosition(endpoint: Endpoint | undefined, elements: CanvasElement[]) { return endpointPoint(endpoint,elements); }
+
+function GeometryFigure({ item }: { item: CanvasElement }) {
+  const geometry = item.type === "shape" ? shapeGeometryPath(item.geometry) : undefined;
+  if (!geometry) return null;
+  return <svg className="shape-geometry" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">
+    <path d={geometry.path} fill={item.style.fill} stroke={item.style.stroke} strokeWidth={item.style.strokeWidth} vectorEffect="non-scaling-stroke" fillRule={("fillRule" in geometry ? geometry.fillRule : undefined) ?? "nonzero"} />
+  </svg>;
+}
+
+const geometryStyle = (item: CanvasElement) => item.type === "shape" && item.geometry ? { background: "transparent", borderWidth: 0 } : {};
 
 function snapEndpoint(x: number, y: number, elements: CanvasElement[]): Endpoint {
   let best: { endpoint: Endpoint; distance: number } | null = null;
@@ -179,7 +192,8 @@ function StaticPage({ page: source, document, playing=false }: { page: CanvasPag
       })}
     </svg>
     {[...page.elements].filter((e) => !e.hidden && !["connector", "line"].includes(e.type)).sort((a, b) => a.z - b.z).map((item) =>
-      <div key={item.id} data-element-id={playing?item.id:undefined} className={`canvas-element element-${item.type === "text" ? "textbox" : item.type}`} style={{ left: item.frame.x, top: item.frame.y, width: item.frame.w, height: item.frame.h, transform: `rotate(${item.frame.rotation}deg)`, zIndex: item.z, opacity: item.style.opacity, background: item.style.fill, borderColor: item.style.stroke, borderWidth: item.style.strokeWidth, borderRadius: item.type === "ellipse" ? 999 : item.style.radius, color: item.style.color, fontSize: item.style.fontSize, fontWeight: item.style.fontWeight, fontFamily: item.style.fontFamily ?? DEFAULT_FONT, fontStyle: item.style.fontStyle ?? "normal", textDecoration: item.style.underline && item.style.strike ? "underline line-through" : item.style.underline ? "underline" : item.style.strike ? "line-through" : "none", lineHeight: item.style.lineHeight ?? 1.28, letterSpacing: item.style.letterSpacing ?? 0, textAlign: item.style.textAlign, alignItems: ["text", "shape", "ellipse"].includes(item.type) ? (item.style.verticalAlign === "bottom" ? "flex-end" : item.style.verticalAlign === "middle" || !item.style.verticalAlign ? "center" : "flex-start") : "stretch" }}>
+      <div key={item.id} data-element-id={playing?item.id:undefined} className={`canvas-element element-${item.type === "text" ? "textbox" : item.type}`} style={{ left: item.frame.x, top: item.frame.y, width: item.frame.w, height: item.frame.h, transform: `rotate(${item.frame.rotation}deg)`, zIndex: item.z, opacity: item.style.opacity, background: geometryStyle(item).background ?? item.style.fill, borderColor: item.style.stroke, borderWidth: geometryStyle(item).borderWidth ?? item.style.strokeWidth, borderRadius: item.type === "ellipse" ? 999 : item.style.radius, color: item.style.color, fontSize: item.style.fontSize, fontWeight: item.style.fontWeight, fontFamily: item.style.fontFamily ?? DEFAULT_FONT, fontStyle: item.style.fontStyle ?? "normal", textDecoration: item.style.underline && item.style.strike ? "underline line-through" : item.style.underline ? "underline" : item.style.strike ? "line-through" : "none", lineHeight: item.style.lineHeight ?? 1.28, letterSpacing: item.style.letterSpacing ?? 0, textAlign: item.style.textAlign, alignItems: ["text", "shape", "ellipse"].includes(item.type) ? (item.style.verticalAlign === "bottom" ? "flex-end" : item.style.verticalAlign === "middle" || !item.style.verticalAlign ? "center" : "flex-start") : "stretch" }}>
+        <GeometryFigure item={item} />
         {["audio","video"].includes(item.type)?<MediaView item={item} playing={playing}/>: ["table","chart"].includes(item.type) ? <DataView item={item}/> : item.type === "component" && document ? <ComponentView item={item} document={document} /> : item.type === "plugin" ? <div className="kpi-card"><div className="kpi-icon" style={{ background: item.content?.accent ?? "#6d5dfc" }}><span /></div><div className="kpi-label">{item.content?.label}</div><div className="kpi-value">{item.content?.value}</div><div className="kpi-trend" style={{ color: item.content?.accent }}>↗ {item.content?.trend}</div></div>
           : item.type === "image" ? (item.content?.src ? <img src={item.content.src} alt={item.content.alt ?? ""} /> : <div className="image-placeholder"><ImageIcon size={46} /><span>Image</span></div>)
           : <div className="element-text" style={{ padding: item.style.padding ?? 12 }}><RichText item={item}/></div>}
@@ -221,6 +235,8 @@ export default function Home() {
   const [pageId, setPageId] = useState(initialDocument.pages[0].id);
   const [selection, setSelection] = useState<string[]>(["api_gateway"]);
   const [tool, setTool] = useState<Tool>("select");
+  const [shapesOpen, setShapesOpen] = useState(false);
+  const [shapeGeometry, setShapeGeometry] = useState<string | null>(null);
   const [zoom, setZoom] = useState(100);
   const [marquee, setMarquee] = useState<{ x: number; y: number; w: number; h: number } | null>(null);
   const [draftLine, setDraftLine] = useState<{ x1: number; y1: number; x2: number; y2: number; arrow: boolean } | null>(null);
@@ -477,10 +493,14 @@ export default function Home() {
     if (activeTool === "ellipse") item = boxElement(id, "Ellipse", { x: x - 90, y: y - 60, w: 180, h: 120 }, "#ecfdf5", "#34d399", "ellipse");
     else if (activeTool === "image") item = makeElement(id, "image", "Image placeholder", { x: x - 150, y: y - 95, w: 300, h: 190 }, { style: makeStyle({ fill: "#e2e8f0", stroke: "#94a3b8", color: "#64748b" }), content: { alt: "Image placeholder" } });
     else if (activeTool === "plugin") item = makeElement(id, "plugin", "KPI Card", { x: x - 150, y: y - 80, w: 300, h: 160 }, { style: makeStyle({ fill: "#fff", stroke: "#e2e8f0", radius: 22 }), content: { label: "ACTIVE USERS", value: "42.8K", trend: "+12.4%", accent: "#6d5dfc" } });
+    else if (activeTool === "shape" && shapeGeometry) {
+      item = boxElement(id, shapeGeometryLabel(shapeGeometry) ?? "Shape", { x: x - 80, y: y - 60, w: 160, h: 120 }, "#f5f3ff", "#8b5cf6");
+      item.geometry = shapeGeometry as CanvasElement["geometry"];
+    }
     else item = boxElement(id, "Rectangle", { x: x - 100, y: y - 60, w: 200, h: 120 }, "#f5f3ff", "#8b5cf6");
     item.frame.x=clamp(item.frame.x,0,Math.max(0,pageW-item.frame.w));item.frame.y=clamp(item.frame.y,0,Math.max(0,pageH-item.frame.h));
     patchPage(page.id, (p) => ({ ...p, elements: [...p.elements, item] })); setSelection([id]); setTool("select");
-  }, [createTextBox, page.id, patchPage,pageW,pageH]);
+  }, [createTextBox, page.id, patchPage,pageW,pageH,shapeGeometry]);
 
   const onCanvasDown = (event: React.PointerEvent<HTMLDivElement>) => {
     const p = point(event.clientX, event.clientY); setEditingId(null);
@@ -595,11 +615,9 @@ export default function Home() {
     if (getAgentAPI().transaction({ operations: [{ op: "createPage", page: p }] }).ok) setPageId(p.id);
   };
   const duplicatePage = (target = page.id) => {
-    const source = doc.pages.find((p) => p.id === target); if (!source) return;
-    const map = new Map(source.elements.map((e) => [e.id, uid(e.type)]));
-    const copy: CanvasPage = { ...source, id: uid("page"), name: `${source.name} copy`, animations:source.animations?.map(c=>({...c,id:uid('cue'),elementId:map.get(c.elementId)!})), elements: source.elements.map((e) => ({ ...e, id: map.get(e.id)!, from: e.from ? { ...e.from, elementId: e.from.elementId ? map.get(e.from.elementId) : undefined } : undefined, to: e.to ? { ...e.to, elementId: e.to.elementId ? map.get(e.to.elementId) : undefined } : undefined })) };
-    const i = doc.pages.findIndex((p) => p.id === target);
-    if (getAgentAPI().transaction({ operations: [{ op: "createPage", page: copy, index: i + 1 }] }).ok) setPageId(copy.id);
+    const i = doc.pages.findIndex((p) => p.id === target); if (i < 0) return;
+    const id = uid("page");
+    if (getAgentAPI().transaction({ operations: [{ op: "duplicatePage", pageId: target, id, index: i + 1 }] }).ok) setPageId(id);
   };
   const deletePage = (target = page.id) => {
     if (doc.pages.length === 1) return;if(!doc.pages.find(p=>p.id===target)?.hidden&&doc.pages.filter(p=>!p.hidden).length===1){setSaveLabel("Keep at least one slide visible");return;} const i = doc.pages.findIndex((p) => p.id === target); const pages = doc.pages.filter((p) => p.id !== target);
@@ -732,6 +750,24 @@ export default function Home() {
     return () => window.removeEventListener("paste", onPaste);
   }, [insertImageFile,presenting]);
 
+  const groupSelection = useCallback((ungroup = false) => {
+    const targets = selected.filter((e) => !e.locked);
+    if (!ungroup && targets.length < 2) return;
+    if (ungroup && !targets.some((e) => e.groupId)) return;
+    const groupId = ungroup ? undefined : uid("group");
+    patchPage(pageId, (p) => ({ ...p, elements: p.elements.map((e) => targets.some((t) => t.id === e.id) ? { ...e, groupId } : e) }));
+  }, [selected, pageId, patchPage]);
+
+  const stepZOrder = useCallback((direction: 1 | -1) => {
+    if (!selection.length) return;
+    const zs = page.elements.map((e) => e.z);
+    patchPage(pageId, (p) => ({ ...p, elements: p.elements.map((e) => {
+      if (!selection.includes(e.id) || e.locked) return e;
+      const next = direction > 0 ? Math.min(...zs.filter((z) => z > e.z)) : Math.max(...zs.filter((z) => z < e.z));
+      return Number.isFinite(next) ? { ...e, z: next + direction } : e;
+    }) }));
+  }, [selection, page.elements, pageId, patchPage]);
+
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
       const target = event.target as HTMLElement | null;
@@ -747,6 +783,9 @@ export default function Home() {
       }
       const typing = target?.tagName === "INPUT" || target?.tagName === "TEXTAREA" || target?.tagName === 'SELECT' || target?.isContentEditable;
       if (typing) return;
+      if (event.key === "F5") { event.preventDefault(); setShapesOpen(false); setPresentIndex(event.shiftKey ? Math.max(0, presentationPages.findIndex((p) => p.id === page.id)) : 0); setPresenting(true); return; }
+      if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "g") { event.preventDefault(); groupSelection(event.shiftKey); return; }
+      if ((event.ctrlKey || event.metaKey) && (event.key === "]" || event.key === "[")) { event.preventDefault(); stepZOrder(event.key === "]" ? 1 : -1); return; }
       if((event.ctrlKey||event.metaKey)&&event.key.toLowerCase()==='a'){event.preventDefault();setSelection(page.elements.filter(e=>!e.locked&&!e.hidden).map(e=>e.id));return;}
       if((event.ctrlKey||event.metaKey)&&['c','x','v'].includes(event.key.toLowerCase())){if(event.key.toLowerCase()==='v'&&!clipboardRef.current)return;event.preventDefault();if(event.key.toLowerCase()==='v')pasteSelection();else copySelection(event.key.toLowerCase()==='x');return;}
       const formattingShortcut = (event.metaKey || event.ctrlKey) && ["b", "i", "u"].includes(event.key.toLowerCase());
@@ -765,7 +804,7 @@ export default function Home() {
       if (event.key === "Escape") {
         if(gestureRef.current){setDoc(committedRef.current);documentRef.current=committedRef.current;}
         gestureRef.current = null;
-        setEditingId(null); setJsonOpen(false); setDraftLine(null); setDraftTextBox(null); setMarquee(null); setGuides([]); setTool("select");
+        setEditingId(null); setJsonOpen(false); setDraftLine(null); setDraftTextBox(null); setMarquee(null); setGuides([]); setTool("select"); setShapesOpen(false);
         if (presenting) setPresenting(false);
         return;
       }
@@ -783,7 +822,7 @@ export default function Home() {
     };
     window.addEventListener("keydown", onKeyDown); window.addEventListener("keyup", onKeyUp);
     return () => { window.removeEventListener("keydown", onKeyDown); window.removeEventListener("keyup", onKeyUp); };
-  }, [deleteSelection, duplicateSelection, pageId, patchPage, patchTextStyle, presenting, redo, selectedOne, selection, tool, undo,presentationPages.length,page.elements,copySelection,pasteSelection,advanceMotion,richTextId,masterEditorId,importReport,cloudOpen]);
+  }, [deleteSelection, duplicateSelection, pageId, patchPage, patchTextStyle, presenting, redo, selectedOne, selection, tool, undo,presentationPages,page.id,page.elements,copySelection,pasteSelection,advanceMotion,richTextId,masterEditorId,importReport,cloudOpen,groupSelection,stepZOrder]);
 
   const commitAgentDocument = useCallback((next: PaperDOMDocument) => {
     // Record each agent transaction synchronously, including back-to-back calls.
@@ -865,8 +904,9 @@ export default function Home() {
     if (item.hidden || ["connector", "line"].includes(item.type)) return null;
     const isSelected = selection.includes(item.id), editing = editingId === item.id;
     return <div key={item.id} data-element-id={item.id} className={`canvas-element element-${item.type === "text" ? "textbox" : item.type} ${isSelected ? "selected" : ""} ${editing ? "editing" : ""}`}
-      style={{ left: item.frame.x, top: item.frame.y, width: item.frame.w, height: item.frame.h, transform: `rotate(${item.frame.rotation}deg)`, zIndex: item.z, opacity: item.style.opacity, background: item.style.fill, borderColor: item.style.stroke, borderWidth: item.style.strokeWidth, borderRadius: item.type === "ellipse" ? 999 : item.style.radius, color: item.style.color, fontSize: item.style.fontSize, fontWeight: item.style.fontWeight, fontFamily: item.style.fontFamily ?? DEFAULT_FONT, fontStyle: item.style.fontStyle ?? "normal", textDecoration: item.style.underline && item.style.strike ? "underline line-through" : item.style.underline ? "underline" : item.style.strike ? "line-through" : "none", lineHeight: item.style.lineHeight ?? 1.28, letterSpacing: item.style.letterSpacing ?? 0, textAlign: item.style.textAlign, alignItems: ["text", "shape", "ellipse"].includes(item.type) ? (item.style.verticalAlign === "bottom" ? "flex-end" : item.style.verticalAlign === "middle" || !item.style.verticalAlign ? "center" : "flex-start") : "stretch" }}
+      style={{ left: item.frame.x, top: item.frame.y, width: item.frame.w, height: item.frame.h, transform: `rotate(${item.frame.rotation}deg)`, zIndex: item.z, opacity: item.style.opacity, background: geometryStyle(item).background ?? item.style.fill, borderColor: item.style.stroke, borderWidth: geometryStyle(item).borderWidth ?? item.style.strokeWidth, borderRadius: item.type === "ellipse" ? 999 : item.style.radius, color: item.style.color, fontSize: item.style.fontSize, fontWeight: item.style.fontWeight, fontFamily: item.style.fontFamily ?? DEFAULT_FONT, fontStyle: item.style.fontStyle ?? "normal", textDecoration: item.style.underline && item.style.strike ? "underline line-through" : item.style.underline ? "underline" : item.style.strike ? "line-through" : "none", lineHeight: item.style.lineHeight ?? 1.28, letterSpacing: item.style.letterSpacing ?? 0, textAlign: item.style.textAlign, alignItems: ["text", "shape", "ellipse"].includes(item.type) ? (item.style.verticalAlign === "bottom" ? "flex-end" : item.style.verticalAlign === "middle" || !item.style.verticalAlign ? "center" : "flex-start") : "stretch" }}
       onPointerDown={(e) => beginElementGesture(e, item)} onDoubleClick={(e) => { e.stopPropagation(); if (!item.locked&&["text", "shape", "ellipse"].includes(item.type)) setEditingId(item.id); }}>
+      <GeometryFigure item={item} />
       {["audio","video"].includes(item.type)?<MediaView item={item}/>: ["table","chart"].includes(item.type) ? <DataView item={item}/> : item.type === "component" ? <ComponentView item={item} document={doc}/> : item.type === "plugin" ? <div className="kpi-card"><div className="kpi-icon" style={{ background: item.content?.accent ?? "#6d5dfc" }}><span /></div><div className="kpi-label">{item.content?.label}</div><div className="kpi-value">{item.content?.value}</div><div className="kpi-trend" style={{ color: item.content?.accent }}>↗ {item.content?.trend}</div></div>
         : item.type === "image" ? (item.content?.src ? <img src={item.content.src} alt={item.content.alt ?? ""} draggable={false} /> : <div className="image-placeholder"><ImageIcon size={46} /><span>Drop or paste an image</span></div>)
         : <InlineText item={item} editing={editing} onComposing={onComposing}
@@ -922,7 +962,11 @@ export default function Home() {
           <div className="page-number"><GripVertical size={13} />{i + 1}</div><MiniPage page={p} document={doc} /><div className="page-caption"><span>{p.hidden?"◌ ":""}{p.name}</span>{p.id === page.id && <span className="page-actions"><button onClick={(e) => { e.stopPropagation(); duplicatePage(p.id); }} title="Duplicate"><Copy size={13} /></button><button onClick={(e) => { e.stopPropagation(); deletePage(p.id); }} title="Delete"><Trash2 size={13} /></button></span>}</div>
         </div>)}</div><button className="add-page-button" onClick={addPage}><Plus size={15} /> Add page</button>
       </aside>
-      <aside className="tool-rail" aria-label="Tools">{toolGroups.map((group, gi) => <div className="tool-group" key={gi}>{group.map(({ id, label, icon: Icon }) => <button key={id} className={`tool-button ${tool === id ? "active" : ""}`} onClick={() => id === "image" ? (replaceImageRef.current=null,imageInputRef.current?.click()) : setTool(id)} title={label}><Icon size={19} strokeWidth={1.8} /><span>{label}</span></button>)}</div>)}<div className="tool-footer"><Lock size={15} /><span>Safe mode</span></div></aside>
+      <aside className="tool-rail" aria-label="Tools">{toolGroups.map((group, gi) => <div className="tool-group" key={gi}>{group.map(({ id, label, icon: Icon }) => <button key={id} className={`tool-button ${tool === id ? "active" : ""}`} onClick={() => id === "image" ? (replaceImageRef.current=null,imageInputRef.current?.click()) : setTool(id)} title={label}><Icon size={19} strokeWidth={1.8} /><span>{label}</span></button>)}</div>)}<div className="tool-group"><button className={`tool-button ${shapesOpen || (tool === "shape" && shapeGeometry) ? "active" : ""}`} aria-haspopup="true" aria-expanded={shapesOpen} onClick={() => setShapesOpen((open) => !open)} title="Shapes"><Shapes size={19} strokeWidth={1.8} /><span>Shapes</span></button></div>{shapesOpen && <div className="shape-palette" role="menu" aria-label="Shape gallery">
+        <button role="menuitem" className="shape-option" onClick={() => { setShapeGeometry(null); setTool("shape"); setShapesOpen(false); }} title="Rectangle"><svg viewBox="0 0 100 100"><rect x="8" y="22" width="84" height="56" rx="6" /></svg><span>Rectangle</span></button>
+        <button role="menuitem" className="shape-option" onClick={() => { setTool("ellipse"); setShapesOpen(false); }} title="Ellipse"><svg viewBox="0 0 100 100"><ellipse cx="50" cy="50" rx="42" ry="30" /></svg><span>Ellipse</span></button>
+        {Object.entries(SHAPE_GEOMETRIES).map(([geometry, { label, path, ...rest }]) => <button key={geometry} role="menuitem" className="shape-option" onClick={() => { setShapeGeometry(geometry); setTool("shape"); setShapesOpen(false); }} title={label}><svg viewBox="0 0 100 100"><path d={path} fillRule={"fillRule" in rest ? rest.fillRule : "nonzero"} /></svg><span>{label}</span></button>)}
+      </div>}<div className="tool-footer"><Lock size={15} /><span>Safe mode</span></div></aside>
       <section className={`workspace tool-${tool}`}>
         <div className="workspace-toolbar">
           <div className="mode-chip"><MousePointer2 size={14} /> {tool === "text" ? "Text box" : tool[0].toUpperCase() + tool.slice(1)} mode</div>
@@ -953,7 +997,7 @@ export default function Home() {
         {selectedOne ? <>
           <section className="inspector-section"><div className="section-title">Position & size</div><div className="field-grid"><Field label="X" value={selectedOne.frame.x} onChange={(x) => patchFrame(selectedOne.id, { x })} /><Field label="Y" value={selectedOne.frame.y} onChange={(y) => patchFrame(selectedOne.id, { y })} /><Field label="W" value={selectedOne.frame.w} min={1} onChange={(w) => patchFrame(selectedOne.id, { w })} /><Field label="H" value={selectedOne.frame.h} min={1} onChange={(h) => patchFrame(selectedOne.id, { h })} /></div><div className="field-row"><Field label="°" value={selectedOne.frame.rotation} onChange={(rotation) => patchFrame(selectedOne.id, { rotation })} /><button className="lock-ratio" disabled={selectedOne.frame.w===0||selectedOne.frame.h===0} aria-label="Lock aspect ratio" aria-pressed={selectedOne.aspectLocked??false} onClick={()=>patchElement(selectedOne.id,{aspectLocked:!selectedOne.aspectLocked})}><Lock size={14} /></button></div></section>
           <section className="inspector-section"><div className="section-title">Arrange</div><div className="arrange-grid"><button onClick={() => patchElement(selectedOne.id, { z: Math.max(...page.elements.map((e) => e.z)) + 1 })}><BringToFront size={15} /> Front</button><button onClick={() => patchElement(selectedOne.id, { z: Math.min(...page.elements.map((e) => e.z)) - 1 })}><SendToBack size={15} /> Back</button></div></section>
-          <section className="inspector-section"><div className="section-title">Appearance</div><label className="color-field"><span>Fill</span><input type="color" value={selectedOne.style.fill === "transparent" ? "#ffffff" : selectedOne.style.fill} onChange={(e) => patchElement(selectedOne.id, { style: { ...selectedOne.style, fill: e.target.value } })} /><code>{selectedOne.style.fill}</code></label><label className="color-field"><span>Border</span><input type="color" value={selectedOne.style.stroke === "transparent" ? "#ffffff" : selectedOne.style.stroke} onChange={(e) => patchElement(selectedOne.id, { style: { ...selectedOne.style, stroke: e.target.value } })} /><code>{selectedOne.style.stroke}</code></label><div className="field-grid"><Field label="R" value={selectedOne.style.radius} min={0} onChange={(radius) => patchElement(selectedOne.id, { style: { ...selectedOne.style, radius } })} /><Field label="%" value={selectedOne.style.opacity * 100} min={0} max={100} onChange={(v) => patchElement(selectedOne.id, { style: { ...selectedOne.style, opacity: v / 100 } })} /></div></section>
+          <section className="inspector-section"><div className="section-title">Appearance</div>{selectedOne.type === "shape" && <label className="font-family-field"><span>Shape</span><select aria-label="Shape geometry" value={selectedOne.geometry ?? "rect"} onChange={(e) => patchElement(selectedOne.id, { geometry: e.target.value === "rect" ? undefined : e.target.value as CanvasElement["geometry"] })}><option value="rect">Rectangle</option>{Object.entries(SHAPE_GEOMETRIES).map(([geometry, { label }]) => <option key={geometry} value={geometry}>{label}</option>)}</select></label>}<label className="color-field"><span>Fill</span><input type="color" value={selectedOne.style.fill === "transparent" ? "#ffffff" : selectedOne.style.fill} onChange={(e) => patchElement(selectedOne.id, { style: { ...selectedOne.style, fill: e.target.value } })} /><code>{selectedOne.style.fill}</code></label><label className="color-field"><span>Border</span><input type="color" value={selectedOne.style.stroke === "transparent" ? "#ffffff" : selectedOne.style.stroke} onChange={(e) => patchElement(selectedOne.id, { style: { ...selectedOne.style, stroke: e.target.value } })} /><code>{selectedOne.style.stroke}</code></label><div className="field-grid"><Field label="R" value={selectedOne.style.radius} min={0} onChange={(radius) => patchElement(selectedOne.id, { style: { ...selectedOne.style, radius } })} /><Field label="%" value={selectedOne.style.opacity * 100} min={0} max={100} onChange={(v) => patchElement(selectedOne.id, { style: { ...selectedOne.style, opacity: v / 100 } })} /></div></section>
           {["text", "shape", "ellipse"].includes(selectedOne.type) && <section className="inspector-section"><button disabled={selectedOne.locked} onClick={()=>setRichTextId(selectedOne.id)}>Rich text and links</button>
             <div className="section-title">Typography</div>
             <button className="edit-text-button" onClick={() => setEditingId(selectedOne.id)}><Type size={14} /> Edit text <span>Enter</span></button>
