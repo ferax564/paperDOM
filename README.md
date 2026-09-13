@@ -71,10 +71,10 @@ New documents use the `paperdom` format identifier and export as `*.paperdom.jso
 The current model includes:
 
 - document metadata and revision
-- ordered pages and page backgrounds
-- typed elements with stable IDs
-- frames, rotation, z-order, and styles
-- text, image, plugin, and connector payloads
+- ordered pages with backgrounds, notes, transitions, timing, hidden state, and optional linked masters
+- typed elements with stable IDs: text, shape (with OOXML preset `geometry`), ellipse, connector, line, image, plugin, component, table, chart, audio, video
+- frames, rotation, z-order, groups, and styles
+- rich text runs and hyperlinks
 - connector endpoints anchored to other elements
 
 ## Agent API
@@ -99,6 +99,8 @@ window.paperdom.transaction({
 
 `window.canvasdoc` remains available as a compatibility alias during the rename.
 
+The same kernel runs headlessly: `npm run cli -- capabilities|outline|query|preview|apply|export-pptx|export-html` operates on `*.paperdom.json` files, and `npm run mcp -- deck.paperdom.json` starts a stdio MCP server exposing document reads, queries, transaction previews/applies, and PPTX/HTML exports to MCP-aware agents. See [docs/AGENT_API.md](docs/AGENT_API.md).
+
 ## Keyboard shortcuts
 
 | Shortcut | Action |
@@ -122,7 +124,7 @@ window.paperdom.transaction({
 | `B` (while presenting) | Toggle black screen |
 | `Alt` while moving/resizing | Temporarily ignore guides |
 
-The Shapes rail button opens a preset-geometry gallery (triangles, arrows, stars, callouts and more) that exports to PowerPoint as native shapes.
+The Shapes rail button opens a preset-geometry gallery (triangles, arrows, stars, callouts and more) that exports to PowerPoint as native shapes. Selecting objects shows a contextual format bar above the canvas with font, style, color, alignment, z-order and grouping controls; the inspector holds the complete property set.
 
 ## Project structure
 
