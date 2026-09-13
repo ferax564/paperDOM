@@ -24,11 +24,19 @@ npm run test:browser
 | Plain-text lists | Bullets, numbering, mixed input, blank lines, indentation, CRLF normalization |
 | Document model | Legacy normalization, nested defaults, IDs, endpoints, style ranges, unsafe image schemes, storage keys |
 | Agent API core | Revision conflicts, nested patching, deletion cleanup, atomic page operations, deterministic preview/diff including element order, strict operation/actor discriminators, draft conflicts, isolated queries/proposals, sequential calls, rotated bounds, alt-text warnings |
-| CLI | Validation/outline/preview/apply, stale revisions, exclusive file creation and input preservation |
+| Agent operations | `patchDocument`, `duplicatePage`, `duplicateElements` (id/connector/group remapping), `moveElements` (endpoint freezing, animation cues), capabilities reporting |
+| MCP server | Handshake, tool listing, blank-start on missing file, revision conflicts, serialized mutations, persistence, PPTX/HTML export tools |
+| CLI | Validation/outline/preview/apply, `export-pptx`/`export-html`, stale revisions, exclusive file creation and input preservation |
 | Browser workflow | Proposal preview/accept/reject, Escape/focus, invalid/stale proposals, back-to-back undo, notes review, page add/duplicate/reorder/delete and reload persistence, retained API handles across page changes/deletion and active text editing |
+| Shape geometry | Gallery insertion, SVG rendering, inspector/bar geometry switching, `prstGeom` PPTX export, import round-trip preserving `geometry` |
+| Format bar | Contextual visibility, style/color/alignment patching, z-order and group actions across multi-selection |
+| Keyboard parity | F5/Shift+F5 presentation entry, Ctrl+G/Ctrl+Shift+G grouping, Ctrl+]/[ z-order steps |
+| PPTX fidelity | `lnSpc`→lineHeight, `spc`→letterSpacing, `charSpacing`/`lineSpacingMultiple` export, merged-cell expansion with warning, unknown `prstGeom` warning |
 | Authentication helper | Local return paths and open-redirect rejection |
 | Production artifact | Worker import, HTML response, preview metadata, PaperDOM branding, core editor controls |
 | Production dependencies | CI audit at high severity or above |
+
+Current suite sizes: 164 Node tests and 66 Playwright browser tests. PPTX output has additionally been opened and PDF-rendered in Keynote, and Keynote-produced packages re-import cleanly; native Microsoft PowerPoint remains unverified.
 
 ## Manual agent-preview checklist
 
@@ -48,12 +56,11 @@ Run this before a release that changes editor interactions:
 
 ## Known unautomated risks
 
-- Canvas pointer gestures, contenteditable line-break behavior, formatting shortcuts, and clipboard image paste still lack browser end-to-end tests.
+- Firefox, Safari, native Microsoft PowerPoint, and assistive technologies are not exercised by automation; the browser suite is Chromium-only.
 - There is no screenshot/visual-regression suite, so CSS and browser differences require preview inspection.
 - Touch editing is not product-complete; the current layout is desktop-first and hides the inspector below 980 px.
 - Storage-quota exhaustion and very large documents are handled with user-visible save failure text but are not stress-tested.
 - The Worker image-optimization branch requires Cloudflare image bindings and is covered by deployment/build validation rather than a unit test.
 - The optional D1 example is not part of the running app and has no integration test against a real database.
+- Hosted two-user collaboration is verified only by scripted checks, not a sustained multi-user session.
 - A full development-dependency audit currently reports one moderate esbuild advisory through Drizzle Kit's optional D1 migration tooling. npm exposes no compatible fix; PaperDOM does not run that esbuild development server. The production-dependency audit is clean and enforced in CI.
-
-Extend the production-build Playwright suite with multiline editing, pointer snapping, import/export, and visual baselines. The current suite covers the agent review and page-command workflows.

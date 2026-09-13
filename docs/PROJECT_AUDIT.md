@@ -2,6 +2,18 @@
 
 This review covered every tracked source, configuration, test, build, and documentation file in the PaperDOM repository.
 
+## Status update — 13 September 2026
+
+Since the original audit, the following shipped and verified:
+
+- **Agent kernel**: `patchDocument`, `duplicatePage`, `duplicateElements`, `moveElements` atomic operations with id remapping, connector-endpoint freezing, and animation/group preservation; richer outline and scene summaries; capabilities reporting fixed (API 0.4, 15 operations).
+- **Headless surfaces**: CLI `export-pptx`/`export-html` with exclusive-create outputs; stdio MCP server (`npm run mcp`) with 11 tools, serialized mutations, revision-conflict checks, and blank-start persistence.
+- **Shape system**: OOXML preset-geometry field, gallery UI, SVG rendering, `Shape geometry` inspector/format-bar controls, native `prstGeom` export and warning-backed import.
+- **Editor parity**: contextual format bar (font, style, color, alignment, fill/border, z-order, grouping), F5/Shift+F5, Ctrl+G/Ctrl+Shift+G, Ctrl+]/[.
+- **PPTX fidelity**: `lnSpc`/`spc` import, `lineSpacingMultiple`/`charSpacing` export, merged-cell expansion with warning, unknown-geometry warnings.
+- **Design**: translucent-glass reskin across chrome, dialogs, canvas stage, and presentation overlay.
+- **Verification**: typecheck, lint, 164 Node tests, 66 Chromium tests, production build and artifact validation all pass. Exported decks were opened and PDF-rendered in Keynote; Keynote-produced packages re-import; geometry round-trips through PPTX. Native Microsoft PowerPoint rendering remains unverified — see POWERPOINT-COMPATIBILITY.md.
+
 ## Corrected in this pass
 
 - Added the MIT license and package/repository metadata.
@@ -38,8 +50,8 @@ The review also replaced Vinext 0.0.50 with 1.0.0-beta.6. The current line remov
 
 ## Product gaps, not test defects
 
-PaperDOM 0.1 still lacks range-level rich text, master layouts/themes, tables/charts, standalone HTML export, multiplayer collaboration, durable cloud storage, and a public plugin SDK. These remain roadmap items rather than undocumented promises.
+Rich text, masters, tables/charts, standalone HTML export, collaboration, and cloud storage have since shipped. Remaining gaps: a published agent SDK, native Microsoft PowerPoint verification, Firefox/Safari and assistive-technology testing, adjustment handles on preset geometry, merged-cell authoring, and large-deck performance evidence.
 
 ## Release recommendation
 
-The project is suitable as an MIT-licensed early prototype. It should not yet be described as a production PowerPoint replacement because browser E2E coverage, cloud persistence, collaboration, accessibility testing, and complex-text fidelity are incomplete.
+The project is suitable as an MIT-licensed early prototype. It should not yet be described as a production PowerPoint replacement because native PowerPoint rendering, cross-browser and accessibility coverage, and hosted multi-user collaboration remain unverified.
