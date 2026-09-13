@@ -1,20 +1,20 @@
 "use client";
-import { InlineText } from './inline-text';
 import {randomId} from './ids.ts';
-/* eslint-disable @next/next/no-img-element */
 
 import {
   AlignCenter, AlignLeft, AlignRight, Bold, Braces, BringToFront, Check, ChevronDown,
-  ArrowLeft, ArrowRight, Circle, Cloud, Copy, FileDown, FileJson, GripVertical, Group, Hand, Image as ImageIcon, Lock, Minus,
+  ArrowLeft, ArrowRight, Circle, Cloud, Copy, FileDown, FileJson, GripVertical, Group, Hand, Image as ImageIcon, Link2, Lock, Minus, Grid2x2,
   Italic, List, ListOrdered, Magnet, MousePointer2, MoveRight, PaintBucket, Play, Plus, Puzzle, Redo2, SendToBack, Share2,
   Square, Strikethrough, Trash2, Type, Underline, Undo2, Ungroup, Upload, X, ZoomIn, ZoomOut,
 } from "lucide-react";
-import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   computeMoveWithGuides,
   computeResizeWithGuides,
   normalizeTextBoxFrame,
+  frameBounds,
   type GuideLine,
+  type GeometryFrame,
 } from "./editor-geometry";
 import {
   documentRestoreKeys,
@@ -32,24 +32,25 @@ import {
 } from "./document-model";
 import { createAgentAPI, isPreviewCurrent, type TransactionPreview } from "./agent-api.ts";
 import { EditorTools } from './editor-tools';
-import {composePage,replaceRunText} from './advanced-model.ts';
-import {RichText,RichTextEditor} from './rich-text';
+import {composePage,replaceRunText, formatRuns, textRuns} from './advanced-model.ts';
+import {RichTextEditor} from './rich-text';
 import {MasterEditor} from './master-editor';
-import {MediaView} from './media-view';
 import {CloudPanel,useCloud} from './cloud-panel';
 import {useMotion} from './motion';
-import { DataView } from './data-view';
 import { translateElement,copyElements, endpointPoint, parseTable, parseChart, resizeWithAspect, clamp } from './presentation-tools.ts';
 import { LibraryPanel } from './library-panel';
-import { resolveComponent, defaultTheme, themes, selectionToComponent, instantiateTemplate, type ComponentLibrary } from './component-library.ts';
+import { defaultTheme, themes, selectionToComponent, instantiateTemplate, type ComponentLibrary } from './component-library.ts';
 import { effectiveLibrary, createExampleDeck } from './starter-library.ts';
 import { AgentReview } from "./agent-review";
-import { listModeForText, toggleListStyle, type ListMode } from "./text-formatting";
+import { listModeForText, listModeForParagraphs, toggleListParagraphs, resyncParagraphs, type ListMode } from "./text-formatting";
+import { selectionOffsets, type RunSelection } from './selection-format';
+import { mirrorDocument, readMirroredDocument } from './document-store';
 
 type Tool = "select" | "pan" | "text" | "shape" | "ellipse" | "arrow" | "line" | "image" | "plugin";
 type Gesture =
   | { kind: "move"; startX: number; startY: number; pageId: string; frames: Record<string, Frame> }
   | { kind: "resize"; startX: number; startY: number; pageId: string; elementId: string; handle: string; frame: Frame }
+  | { kind: "scale-selection"; startX: number; startY: number; pageId: string; bbox: Frame; frames: Record<string, Frame>; handle: string }
   | { kind: "rotate"; pageId: string; elementId: string; centerX: number; centerY: number; startAngle: number; rotation: number }
   | { kind: "endpoint"; pageId: string; elementId: string; side: "from" | "to"; x: number; y: number }
   | { kind: "marquee"; pageId: string; startX: number; startY: number }
@@ -58,7 +59,8 @@ type Gesture =
 
 const PAGE_W = 1280;
 const PAGE_H = 720;
-const BASE_SCALE = 0.62;
+const MIN_ZOOM = 25;
+const MAX_ZOOM = 400;
 const MAX_IMAGE_BYTES = 2_000_000;
 const FONT_OPTIONS = [
   { label: "Inter", value: "Inter, ui-sans-serif, system-ui, sans-serif" },
@@ -150,20 +152,30 @@ const toolGroups = [
    { id: "arrow", label: "Arrow", icon: MoveRight }, { id: "line", label: "Line", icon: Minus }, { id: "image", label: "Image", icon: ImageIcon }, { id: "plugin", label: "KPI plugin", icon: Puzzle }],
 ] as const;
 
-import { SHAPE_GEOMETRIES, shapeGeometryLabel, shapeGeometryPath } from './geometry-shapes.ts';
+import { SHAPE_GEOMETRIES, shapeGeometryLabel } from './geometry-shapes.ts';
 import { Shapes } from "lucide-react";
+import { StaticPage, MiniPage, ElementView, type ElementViewHandlers } from './element-visual';
 
 function endpointPosition(endpoint: Endpoint | undefined, elements: CanvasElement[]) { return endpointPoint(endpoint,elements); }
 
-function GeometryFigure({ item }: { item: CanvasElement }) {
-  const geometry = item.type === "shape" ? shapeGeometryPath(item.geometry) : undefined;
-  if (!geometry) return null;
-  return <svg className="shape-geometry" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">
-    <path d={geometry.path} fill={item.style.fill} stroke={item.style.stroke} strokeWidth={item.style.strokeWidth} vectorEffect="non-scaling-stroke" fillRule={("fillRule" in geometry ? geometry.fillRule : undefined) ?? "nonzero"} />
-  </svg>;
+/** Pure: does a text range already carry a style (dominant over its coverage)? */
+function runStyleInRange(item: CanvasElement, range: RunSelection | null, key: "bold" | "italic" | "underline" | "strike"): boolean {
+  if (!range) return false;
+  let offset = 0, covered = 0, styled = 0;
+  for (const run of textRuns(item)) {
+    const a = Math.max(0, range.start - offset), b = Math.min(run.text.length, range.end - offset);
+    if (a < b) {
+      covered += b - a;
+      const on = key === "bold" ? (run.style?.fontWeight ?? item.style.fontWeight) >= 700
+        : key === "italic" ? (run.style?.fontStyle ?? item.style.fontStyle) === "italic"
+        : key === "underline" ? (run.style?.underline ?? item.style.underline)
+        : (run.style?.strike ?? item.style.strike);
+      if (on) styled += b - a;
+    }
+    offset += run.text.length;
+  }
+  return covered > 0 && styled >= covered / 2;
 }
-
-const geometryStyle = (item: CanvasElement) => item.type === "shape" && item.geometry ? { background: "transparent", borderWidth: 0 } : {};
 
 function snapEndpoint(x: number, y: number, elements: CanvasElement[]): Endpoint {
   let best: { endpoint: Endpoint; distance: number } | null = null;
@@ -180,37 +192,8 @@ function snapEndpoint(x: number, y: number, elements: CanvasElement[]): Endpoint
   return best?.endpoint ?? { x, y };
 }
 
-function StaticPage({ page: source, document, playing=false }: { page: CanvasPage; document?: PaperDOMDocument; playing?:boolean }) {
-  const page=composePage(source,document);
-  const markerId = useId();
-  return <div className="static-page" style={{ background: page.background.color, width: page.size.width, height: page.size.height }}>
-    <svg className="connector-layer" viewBox={`0 0 ${page.size.width} ${page.size.height}`} aria-hidden="true">
-      <defs><marker id={markerId} markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto" markerUnits="strokeWidth"><path d="M0,0 L0,6 L9,3 z" fill="context-stroke" /></marker></defs>
-      {page.elements.filter((e) => !e.hidden && ["connector", "line"].includes(e.type)).map((e) => {
-        const a = endpointPosition(e.from, page.elements), b = endpointPosition(e.to, page.elements);
-        return <line key={e.id} data-element-id={playing?e.id:undefined} x1={a.x} y1={a.y} x2={b.x} y2={b.y} stroke={e.style.stroke} strokeWidth={e.style.strokeWidth} strokeDasharray={e.style.lineStyle === "dashed" ? "10 8" : undefined} markerEnd={e.type === "connector" ? `url(#${markerId})` : undefined} />;
-      })}
-    </svg>
-    {[...page.elements].filter((e) => !e.hidden && !["connector", "line"].includes(e.type)).sort((a, b) => a.z - b.z).map((item) =>
-      <div key={item.id} data-element-id={playing?item.id:undefined} className={`canvas-element element-${item.type === "text" ? "textbox" : item.type}`} style={{ left: item.frame.x, top: item.frame.y, width: item.frame.w, height: item.frame.h, transform: `rotate(${item.frame.rotation}deg)`, zIndex: item.z, opacity: item.style.opacity, background: geometryStyle(item).background ?? item.style.fill, borderColor: item.style.stroke, borderWidth: geometryStyle(item).borderWidth ?? item.style.strokeWidth, borderRadius: item.type === "ellipse" ? 999 : item.style.radius, color: item.style.color, fontSize: item.style.fontSize, fontWeight: item.style.fontWeight, fontFamily: item.style.fontFamily ?? DEFAULT_FONT, fontStyle: item.style.fontStyle ?? "normal", textDecoration: item.style.underline && item.style.strike ? "underline line-through" : item.style.underline ? "underline" : item.style.strike ? "line-through" : "none", lineHeight: item.style.lineHeight ?? 1.28, letterSpacing: item.style.letterSpacing ?? 0, textAlign: item.style.textAlign, alignItems: ["text", "shape", "ellipse"].includes(item.type) ? (item.style.verticalAlign === "bottom" ? "flex-end" : item.style.verticalAlign === "middle" || !item.style.verticalAlign ? "center" : "flex-start") : "stretch" }}>
-        <GeometryFigure item={item} />
-        {["audio","video"].includes(item.type)?<MediaView item={item} playing={playing}/>: ["table","chart"].includes(item.type) ? <DataView item={item}/> : item.type === "component" && document ? <ComponentView item={item} document={document} /> : item.type === "plugin" ? <div className="kpi-card"><div className="kpi-icon" style={{ background: item.content?.accent ?? "#6d5dfc" }}><span /></div><div className="kpi-label">{item.content?.label}</div><div className="kpi-value">{item.content?.value}</div><div className="kpi-trend" style={{ color: item.content?.accent }}>↗ {item.content?.trend}</div></div>
-          : item.type === "image" ? (item.content?.src ? <img src={item.content.src} alt={item.content.alt ?? ""} /> : <div className="image-placeholder"><ImageIcon size={46} /><span>Image</span></div>)
-          : <div className="element-text" style={{ padding: item.style.padding ?? 12 }}><RichText item={item}/></div>}
-      </div>)}
-  </div>;
-}
-
-function ComponentView({item,document}:{item:CanvasElement;document:PaperDOMDocument}) {
-  return <div className="component-content"><StaticPage page={{id:item.id,name:item.name,size:{width:item.frame.w,height:item.frame.h},background:{color:'transparent'},elements:resolveComponent(item,effectiveLibrary(document),document.theme??defaultTheme)}} document={document}/></div>;
-}
-
 function Field({ label, value, onChange, min, max, step }: { label: string; value: number; onChange: (value: number) => void; min?: number; max?: number; step?: number }) {
   return <label className="field"><span>{label}</span><input type="number" value={Math.round(value * 100) / 100} min={min} max={max} step={step} onChange={(e) => { const value=Number(e.target.value);if(e.target.value!==""&&Number.isFinite(value))onChange(clamp(value,min??-Infinity,max??Infinity)); }} /></label>;
-}
-
-function MiniPage({ page, document }: { page: CanvasPage; document:PaperDOMDocument }) {
-  return <div className="mini-page"><svg viewBox={`0 0 ${page.size.width} ${page.size.height}`} width="100%" height="100%" aria-hidden="true"><foreignObject width={page.size.width} height={page.size.height}><StaticPage page={page} document={document}/></foreignObject></svg></div>;
 }
 
 
@@ -238,6 +221,11 @@ export default function Home() {
   const [shapesOpen, setShapesOpen] = useState(false);
   const [shapeGeometry, setShapeGeometry] = useState<string | null>(null);
   const [zoom, setZoom] = useState(100);
+  const [contextMenu, setContextMenu] = useState<{ x: number; y: number; elementId?: string } | null>(null);
+  const [gridEnabled, setGridEnabled] = useState(false);
+  const [gridSize, setGridSize] = useState(50);
+  const [runSelection, setRunSelection] = useState<RunSelection | null>(null);
+  const [alignToPage, setAlignToPage] = useState(false);
   const [marquee, setMarquee] = useState<{ x: number; y: number; w: number; h: number } | null>(null);
   const [draftLine, setDraftLine] = useState<{ x1: number; y1: number; x2: number; y2: number; arrow: boolean } | null>(null);
   const [draftTextBox, setDraftTextBox] = useState<Frame | null>(null);
@@ -266,6 +254,10 @@ export default function Home() {
   const documentRef = useRef<PaperDOMDocument>(initialDocument);
   const agentContextRef = useRef<{ pageId: string; editingId: string | null; modal:boolean }>({ pageId: initialDocument.pages[0].id, editingId: null,modal:false });
   const historyActionRef = useRef(false);
+  // Typing bursts coalesce into one undo entry: kind + timestamp + generation guard.
+  const historyKindRef = useRef<"text" | "other" | null>(null);
+  const historyMetaRef = useRef({ kind: "other" as "text" | "other", stamp: 0, generation: 0 });
+  const historyGenerationRef = useRef(0);
   const spaceToolRef = useRef<Tool | null>(null);
   const textEditorRefs = useRef(new Map<string, HTMLDivElement>());
   const composingRef = useRef(false);
@@ -274,13 +266,18 @@ export default function Home() {
 
   const page = useMemo(() => doc.pages.find((p) => p.id === pageId) ?? doc.pages[0], [doc.pages, pageId]);
   const pageW=page.size.width,pageH=page.size.height;
-  const scale = Math.max(.08,Math.min(BASE_SCALE,(viewport.width-(viewport.width<900?100:650))/pageW,(viewport.height-200)/pageH))*zoom/100;
+  const fitScale = Math.max(.08,Math.min((viewport.width-(viewport.width<900?100:650))/pageW,(viewport.height-200)/pageH));
+  const scale = fitScale*zoom/100;
   const presentationPages=useMemo(()=>doc.pages.filter(p=>!p.hidden),[doc.pages]);
   const presentPage = presentationPages[Math.min(presentIndex,presentationPages.length-1)]??page;
   const {root:motionRoot,advance:advanceMotion}=useMotion(presentPage,presenting);
   const selected = useMemo(() => page.elements.filter((e) => selection.includes(e.id)), [page.elements, selection]);
+  const multiSelectionBBox = useMemo(() => {
+    const frames = selected.filter((e) => !e.locked && !e.hidden).map((e) => ({ ...e.frame }));
+    return frames.length > 1 ? frameBounds(frames as GeometryFrame[]) : null;
+  }, [selected]);
   const selectedOne = selected.length === 1 ? selected[0] : null;
-  const selectedListMode = selectedOne ? listModeForText(selectedOne.content?.text ?? "") : "none";
+  const selectedListMode = selectedOne ? listModeForParagraphs(selectedOne.content?.paragraphs) || listModeForText(selectedOne.content?.text ?? "") : "none";
 
   useEffect(() => {
     const onResize = () => setViewport({ width: window.innerWidth, height: window.innerHeight });
@@ -295,22 +292,34 @@ export default function Home() {
         setGuidePreferenceLoaded(true);
       }, 0);
       const lastDocumentId = window.localStorage.getItem(LAST_DOCUMENT_STORAGE_KEY);
-      const saved = documentRestoreKeys(lastDocumentId)
+      const restoreKeys = documentRestoreKeys(lastDocumentId);
+      const saved = restoreKeys
         .map((key) => window.localStorage.getItem(key))
         .find((value) => value !== null);
-      if (saved) {
-        const parsed = parsePaperDOMDocument(JSON.parse(saved));
-        if (parsed.ok) {
-          const restored = parsed.document;
-          restoreTimer = window.setTimeout(() => {
-            historyActionRef.current = true;
-            committedRef.current = restored;
-            documentRef.current=restored;
-    setDoc(restored);
-            setPageId(restored.pages[0].id);
-            setSelection([]);
-          }, 0);
-        }
+      const restore = (candidate: string) => {
+        const parsed = parsePaperDOMDocument(JSON.parse(candidate));
+        if (!parsed.ok) return false;
+        const restored = parsed.document;
+        restoreTimer = window.setTimeout(() => {
+          historyActionRef.current = true;
+          committedRef.current = restored;
+          documentRef.current=restored;
+          setDoc(restored);
+          setPageId(restored.pages[0].id);
+          setSelection([]);
+        }, 0);
+        return true;
+      };
+      if (saved && restore(saved)) {
+        // Restored from localStorage.
+      } else {
+        // Quota or private-mode fallback: recover from the IndexedDB mirror.
+        void (async () => {
+          for (const key of restoreKeys) {
+            const mirrored = await readMirroredDocument(key);
+            if (mirrored && restore(mirrored)) return;
+          }
+        })();
       }
     } catch {
       window.setTimeout(() => setSaveLabel("Recovery copy loaded"), 0);
@@ -356,7 +365,14 @@ export default function Home() {
     }
     if (doc.revision !== committedRef.current.revision) {
       const previous = committedRef.current;
-      setPast((items) => [...items.slice(-49), previous]);
+      const kind = historyKindRef.current ?? "other";
+      const stamp = Date.now();
+      const meta = historyMetaRef.current;
+      // A typing burst collapses into the entry created by its first keystroke.
+      const coalesce = kind === "text" && meta.kind === "text" && stamp - meta.stamp < 1200 && meta.generation === historyGenerationRef.current;
+      if (!coalesce) setPast((items) => [...items.slice(-49), previous]);
+      historyMetaRef.current = { kind, stamp, generation: historyGenerationRef.current };
+      historyKindRef.current = null;
       setFuture([]);
       committedRef.current = doc;
     }
@@ -366,13 +382,16 @@ export default function Home() {
     if (!loaded) return;
     const savingTimer = window.setTimeout(() => setSaveLabel("Saving…"), 0);
     const timer = window.setTimeout(() => {
+      const serialized = JSON.stringify(doc);
       try {
-        window.localStorage.setItem(documentStorageKey(doc.id), JSON.stringify(doc));
+        window.localStorage.setItem(documentStorageKey(doc.id), serialized);
         window.localStorage.setItem(LAST_DOCUMENT_STORAGE_KEY, doc.id);
         setSaveLabel("Saved locally");
       } catch {
+        // Quota exhausted: the IndexedDB mirror below still keeps a recoverable copy.
         setSaveLabel("Local save unavailable");
       }
+      void mirrorDocument(documentStorageKey(doc.id), serialized);
     }, 420);
     return () => { window.clearTimeout(savingTimer); window.clearTimeout(timer); };
   }, [doc, doc.revision, doc.title, loaded]);
@@ -385,6 +404,8 @@ export default function Home() {
     setPast(past.slice(0, -1));
     setFuture((items) => [current, ...items].slice(0, 50));
     historyActionRef.current = true;
+    historyGenerationRef.current += 1;
+    historyMetaRef.current = { kind: "other", stamp: 0, generation: historyGenerationRef.current };
     committedRef.current = restored;
     documentRef.current=restored;
     setDoc(restored);
@@ -400,6 +421,8 @@ export default function Home() {
     setPast((items) => [...items, current].slice(-50));
     setFuture(future.slice(1));
     historyActionRef.current = true;
+    historyGenerationRef.current += 1;
+    historyMetaRef.current = { kind: "other", stamp: 0, generation: historyGenerationRef.current };
     committedRef.current = restored;
     documentRef.current=restored;
     setDoc(restored);
@@ -413,64 +436,83 @@ export default function Home() {
     return { x: Math.max(0, Math.min(pageW, (clientX - rect.left) / scale)), y: Math.max(0, Math.min(pageH, (clientY - rect.top) / scale)) };
   }, [scale,pageW,pageH]);
   const patchPage = useCallback((targetId: string, updater: (p: CanvasPage) => CanvasPage) => setDoc((d) => ({ ...d, revision: d.revision + 1, metadata: { ...d.metadata, updatedAt: new Date().toISOString() }, pages: d.pages.map((p) => p.id === targetId ? updater(p) : p) })), []);
-  const patchElement = useCallback((elementId: string, patch: Partial<CanvasElement>) => patchPage(pageId, (p) => ({ ...p, elements: p.elements.map((e) => e.id === elementId && (!e.locked || patch.locked!==undefined || patch.hidden!==undefined) ? { ...e, ...patch, ...(e.runs&&patch.content?.text!==undefined&&patch.runs===undefined?{runs:replaceRunText(e.runs,patch.content.text)}:{}) } : e) })), [pageId, patchPage]);
-  const patchFrame = useCallback((elementId: string, patch: Partial<Frame>) => patchPage(pageId, (p) => ({ ...p, elements: p.elements.map((e) => {
+  // Live state mirrors: keep gesture and format callbacks referentially stable.
+  const pageIdRef = useRef(pageId); useEffect(() => { pageIdRef.current = pageId; }, [pageId]);
+  const selectionRef = useRef(selection); useEffect(() => { selectionRef.current = selection; }, [selection]);
+  const toolRef = useRef(tool); useEffect(() => { toolRef.current = tool; }, [tool]);
+  const editingRef = useRef(editingId); useEffect(() => { editingRef.current = editingId; }, [editingId]);
+  const runSelectionRef = useRef<RunSelection | null>(runSelection); useEffect(() => { runSelectionRef.current = runSelection; }, [runSelection]);
+  const pageRefLive = useRef(page); useEffect(() => { pageRefLive.current = page; }, [page]);
+  const patchElement = useCallback((elementId: string, patch: Partial<CanvasElement>) => patchPage(pageIdRef.current, (p) => ({ ...p, elements: p.elements.map((e) => e.id === elementId && (!e.locked || patch.locked!==undefined || patch.hidden!==undefined) ? { ...e, ...patch, ...(e.runs&&patch.content?.text!==undefined&&patch.runs===undefined?{runs:replaceRunText(e.runs,patch.content.text)}:{}) } : e) })), [patchPage]);
+  const patchFrame = useCallback((elementId: string, patch: Partial<Frame>) => patchPage(pageIdRef.current, (p) => ({ ...p, elements: p.elements.map((e) => {
     if(e.id!==elementId||e.locked)return e;const next={...e.frame,...patch};next.w=Math.max(1,next.w);next.h=Math.max(1,next.h);
     if(e.aspectLocked&&e.frame.w>0&&e.frame.h>0){if(patch.w!==undefined)next.h=next.w*e.frame.h/e.frame.w;else if(patch.h!==undefined)next.w=next.h*e.frame.w/e.frame.h;}
     return {...e,frame:next};
-  }) })), [pageId, patchPage]);
+  }) })), [patchPage]);
   const patchTextStyle = useCallback((item: CanvasElement, stylePatch: Partial<ElementStyle>) => {
-    const liveText = editingId === item.id ? textEditorRefs.current.get(item.id)?.innerText : undefined;
+    const liveText = editingRef.current === item.id ? textEditorRefs.current.get(item.id)?.innerText : undefined;
     patchElement(item.id, {
       style: { ...item.style, ...stylePatch },
       ...(liveText === undefined ? {} : { name: liveText.trim().slice(0, 28) || "Text box", content: { ...item.content, text: liveText } }),
     });
-  }, [editingId, patchElement]);
+  }, [patchElement]);
   const toggleListForElement = useCallback((item: CanvasElement, mode: ListMode) => {
     const text = textEditorRefs.current.get(item.id)?.innerText ?? item.content?.text ?? "";
-    const nextText = toggleListStyle(text, mode);
-    patchElement(item.id, { name: nextText.trim().slice(0, 28) || "Text box", content: { ...item.content, text: nextText } });
+    const nextParagraphs = toggleListParagraphs(text, item.content?.paragraphs, mode);
+    const hasLists = nextParagraphs.some((p) => p.kind !== "plain");
+    patchElement(item.id, {
+      name: text.trim().slice(0, 28) || "Text box",
+      content: { ...item.content, text, ...(hasLists ? { paragraphs: nextParagraphs } : { paragraphs: undefined }) },
+    });
   }, [patchElement]);
 
-  const beginPan = (event: React.PointerEvent) => {
+  const beginPan = useCallback((event: React.PointerEvent) => {
     const scroller = workspaceScrollRef.current;
     if (!scroller) return;
     event.preventDefault();
     event.stopPropagation();
     panRef.current = { x: event.clientX, y: event.clientY, left: scroller.scrollLeft, top: scroller.scrollTop };
-  };
+  }, []);
 
-  const beginElementGesture = (event: React.PointerEvent, item: CanvasElement) => {
-    if (tool === "pan") { beginPan(event); return; }
-    if (tool !== "select" || item.locked || editingId === item.id) return;
+  const beginElementGesture = useCallback((event: React.PointerEvent, item: CanvasElement) => {
+    if (toolRef.current === "pan") { beginPan(event); return; }
+    if (toolRef.current !== "select" || item.locked || editingRef.current === item.id) return;
     event.stopPropagation();
-    const ids = event.shiftKey ? (selection.includes(item.id) ? selection.filter((id) => id !== item.id) : [...selection, item.id]) : (selection.includes(item.id) ? selection : [item.id]);
-    const grouped=item.groupId?page.elements.filter(e=>e.groupId===item.groupId&&!e.locked&&!e.hidden).map(e=>e.id):[];
+    const liveSelection = selectionRef.current, livePage = pageRefLive.current;
+    const ids = event.shiftKey ? (liveSelection.includes(item.id) ? liveSelection.filter((id) => id !== item.id) : [...liveSelection, item.id]) : (liveSelection.includes(item.id) ? liveSelection : [item.id]);
+    const grouped=item.groupId?livePage.elements.filter(e=>e.groupId===item.groupId&&!e.locked&&!e.hidden).map(e=>e.id):[];
     const movingIds=[...new Set([...ids,...grouped])];
     setSelection(movingIds);
-    if (event.shiftKey && selection.includes(item.id)) return;
-    gestureRef.current = { kind: "move", startX: event.clientX, startY: event.clientY, pageId: page.id, frames: Object.fromEntries(page.elements.filter((e) => movingIds.includes(e.id)&&!e.locked&&!e.hidden).map((e) => [e.id, { ...e.frame }])) };
-  };
-  const beginResize = (event: React.PointerEvent, item: CanvasElement, handle: string) => {
+    if (event.shiftKey && liveSelection.includes(item.id)) return;
+    gestureRef.current = { kind: "move", startX: event.clientX, startY: event.clientY, pageId: livePage.id, frames: Object.fromEntries(livePage.elements.filter((e) => movingIds.includes(e.id)&&!e.locked&&!e.hidden).map((e) => [e.id, { ...e.frame }])) };
+  }, [beginPan]);
+  const beginResize = useCallback((event: React.PointerEvent, item: CanvasElement, handle: string) => {
     if(item.locked)return;
     event.stopPropagation(); event.preventDefault();
-    gestureRef.current = { kind: "resize", startX: event.clientX, startY: event.clientY, pageId: page.id, elementId: item.id, handle, frame: { ...item.frame } };
-  };
-  const beginRotate = (event: React.PointerEvent, item: CanvasElement) => {
+    gestureRef.current = { kind: "resize", startX: event.clientX, startY: event.clientY, pageId: pageRefLive.current.id, elementId: item.id, handle, frame: { ...item.frame } };
+  }, []);
+  const beginScaleSelection = useCallback((event: React.PointerEvent, handle: string) => {
+    const frames = Object.fromEntries(pageRefLive.current.elements.filter((e) => selectionRef.current.includes(e.id) && !e.locked && !e.hidden).map((e) => [e.id, { ...e.frame }]));
+    const ids = Object.keys(frames);
+    if (!ids.length) return;
+    const bounds = frameBounds(Object.values(frames) as GeometryFrame[]);
+    gestureRef.current = { kind: "scale-selection", startX: event.clientX, startY: event.clientY, pageId: pageRefLive.current.id, bbox: { ...bounds, rotation: 0 }, frames, handle };
+  }, []);
+  const beginRotate = useCallback((event: React.PointerEvent, item: CanvasElement) => {
     if(item.locked)return;
     event.stopPropagation(); event.preventDefault();
     const rect = pageRef.current?.getBoundingClientRect(); if (!rect) return;
     const centerX = rect.left + (item.frame.x + item.frame.w / 2) * scale;
     const centerY = rect.top + (item.frame.y + item.frame.h / 2) * scale;
-    gestureRef.current = { kind: "rotate", pageId: page.id, elementId: item.id, centerX, centerY, startAngle: Math.atan2(event.clientY - centerY, event.clientX - centerX) * 180 / Math.PI, rotation: item.frame.rotation };
-  };
-  const beginEndpoint = (event: React.PointerEvent<SVGCircleElement>, item: CanvasElement, side: "from" | "to") => {
+    gestureRef.current = { kind: "rotate", pageId: pageRefLive.current.id, elementId: item.id, centerX, centerY, startAngle: Math.atan2(event.clientY - centerY, event.clientX - centerX) * 180 / Math.PI, rotation: item.frame.rotation };
+  }, [scale]);
+  const beginEndpoint = useCallback((event: React.PointerEvent<SVGCircleElement>, item: CanvasElement, side: "from" | "to") => {
     if(item.locked)return;
     event.stopPropagation();
     event.preventDefault();
-    const position = endpointPosition(side === "from" ? item.from : item.to, page.elements);
-    gestureRef.current = { kind: "endpoint", pageId: page.id, elementId: item.id, side, x: position.x, y: position.y };
-  };
+    const position = endpointPosition(side === "from" ? item.from : item.to, pageRefLive.current.elements);
+    gestureRef.current = { kind: "endpoint", pageId: pageRefLive.current.id, elementId: item.id, side, x: position.x, y: position.y };
+  }, []);
 
   const createTextBox = useCallback((frame: Omit<Frame, "rotation">) => {
     const id = uid("text");
@@ -563,6 +605,29 @@ export default function Home() {
         if(activeElement?.aspectLocked&&activePage)result.frame=resizeWithAspect(g.frame,{...g.frame,...result.frame},g.handle,activePage);
         setGuides(result.guides);
         setDoc((d) => ({ ...d, pages: d.pages.map((p) => p.id !== g.pageId ? p : ({ ...p, elements: p.elements.map((e) => e.id === g.elementId ? { ...e, frame: { ...e.frame, ...result.frame } } : e) })) }));
+      } else if (g.kind === "scale-selection") {
+        const delta = { x: (event.clientX - g.startX) / scale, y: (event.clientY - g.startY) / scale };
+        let nw = g.bbox.w, nh = g.bbox.h;
+        if (g.handle.includes("e")) nw = Math.max(24, g.bbox.w + delta.x);
+        if (g.handle.includes("s")) nh = Math.max(24, g.bbox.h + delta.y);
+        if (g.handle.includes("w")) nw = Math.max(24, g.bbox.w - delta.x);
+        if (g.handle.includes("n")) nh = Math.max(24, g.bbox.h - delta.y);
+        const corner = g.handle.length === 2;
+        const sx = nw / g.bbox.w, sy = nh / g.bbox.h;
+        const fx = corner ? Math.min(sx, sy) : sx, fy = corner ? Math.min(sx, sy) : sy;
+        const originX = g.handle.includes("w") ? g.bbox.x + g.bbox.w : g.bbox.x;
+        const originY = g.handle.includes("n") ? g.bbox.y + g.bbox.h : g.bbox.y;
+        setDoc((d) => ({ ...d, pages: d.pages.map((p) => p.id !== g.pageId ? p : ({ ...p, elements: p.elements.map((e) => {
+          const f = g.frames[e.id];
+          if (!f) return e;
+          const next = { ...f, x: originX + (f.x - originX) * fx, y: originY + (f.y - originY) * fy, w: Math.max(1, f.w * fx), h: Math.max(1, f.h * fy) };
+          const moved = { ...e, frame: next };
+          for (const side of ["from", "to"] as const) {
+            const endpoint = moved[side];
+            if (endpoint && !endpoint.elementId) moved[side] = { ...endpoint, x: originX + ((endpoint.x ?? 0) - originX) * fx, y: originY + ((endpoint.y ?? 0) - originY) * fy };
+          }
+          return moved;
+        }) })) }));
       } else if (g.kind === "rotate") {
         let rotation = g.rotation + Math.atan2(event.clientY - g.centerY, event.clientX - g.centerX) * 180 / Math.PI - g.startAngle;
         if (event.shiftKey) rotation = Math.round(rotation / 15) * 15;
@@ -602,13 +667,24 @@ export default function Home() {
       if (g.kind === "endpoint") {
         patchPage(g.pageId, (targetPage) => ({ ...targetPage, elements: targetPage.elements.map((item) => item.id === g.elementId ? { ...item, [g.side]: snapEndpoint(g.x, g.y, targetPage.elements.filter((candidate) => candidate.id !== g.elementId)) } : item) }));
       }
-      if (["move", "resize", "rotate"].includes(g.kind)) setDoc((d) => ({ ...d, revision: d.revision + 1, metadata: { ...d.metadata, updatedAt: new Date().toISOString() } }));
+      if (["move", "resize", "rotate", "scale-selection"].includes(g.kind)) setDoc((d) => ({ ...d, revision: d.revision + 1, metadata: { ...d.metadata, updatedAt: new Date().toISOString() } }));
       setGuides([]);
       gestureRef.current = null;
     };
     window.addEventListener("pointermove", onMove); window.addEventListener("pointerup", onUp);
     return () => { window.removeEventListener("pointermove", onMove); window.removeEventListener("pointerup", onUp); };
   }, [createTextBox, doc.pages, draftLine, marquee, patchPage, point, scale, smartGuidesEnabled,pageW,pageH]);
+
+  useEffect(() => {
+    const onWheel = (event: WheelEvent) => {
+      if (presenting || !event.ctrlKey && !event.metaKey) return;
+      event.preventDefault();
+      setZoom((z) => clamp(Math.round(z * (event.deltaY < 0 ? 1.1 : 0.91)), MIN_ZOOM, MAX_ZOOM));
+    };
+    const el = workspaceScrollRef.current;
+    el?.addEventListener("wheel", onWheel, { passive: false });
+    return () => el?.removeEventListener("wheel", onWheel);
+  }, [presenting]);
 
   const addPage = () => {
     const p: CanvasPage = { id: uid("page"), name: `Page ${doc.pages.length + 1}`, size: { width: pageW, height: pageH }, background: { color: "#ffffff" }, elements: [textElement(uid("title"), "Untitled page", { x: 80, y: 60, w: 560, h: 60 }, 32, { style: makeStyle({ fill: "transparent", stroke: "transparent", fontSize: 32, fontWeight: 750, textAlign: "left" }) })] };
@@ -631,22 +707,14 @@ export default function Home() {
     getAgentAPI().transaction({ operations: [{ op: "reorderPages", pageIds: ids }] });
     setPageDragId(null);
   };
-  const alignSelection = (mode: "left" | "center" | "top" | "middle") => {
-    if (selected.length < 2) return; const b = { l: Math.min(...selected.map((e) => e.frame.x)), r: Math.max(...selected.map((e) => e.frame.x + e.frame.w)), t: Math.min(...selected.map((e) => e.frame.y)), b: Math.max(...selected.map((e) => e.frame.y + e.frame.h)) };
-    patchPage(page.id, (p) => ({ ...p, elements: p.elements.map((e) => !selection.includes(e.id)||e.locked||e.hidden ? e : { ...e, frame: { ...e.frame, x: mode === "left" ? b.l : mode === "center" ? (b.l + b.r - e.frame.w) / 2 : e.frame.x, y: mode === "top" ? b.t : mode === "middle" ? (b.t + b.b - e.frame.h) / 2 : e.frame.y } }) }));
+  const alignSelection = (mode: "left" | "centerX" | "right" | "top" | "centerY" | "bottom", relative: "selection" | "page" = "selection") => {
+    if (selected.filter((e) => !e.locked && !e.hidden).length < 2) return;
+    requireSuccess(getAgentAPI().transaction({ operations: [{ op: "alignElements", ids: selection, mode, relative }] }));
   };
 
-  const distributeSelection = () => {
-    if (selected.length < 3) return;
-    const ordered = selected.filter(e=>!e.locked&&!e.hidden).sort((a, b) => a.frame.x - b.frame.x);if(ordered.length<3)return;
-    const left = ordered[0].frame.x;
-    const right = ordered[ordered.length - 1].frame.x + ordered[ordered.length - 1].frame.w;
-    const totalWidth = ordered.reduce((sum, item) => sum + item.frame.w, 0);
-    const gap = (right - left - totalWidth) / (ordered.length - 1);
-    let cursor = left;
-    const positions = new Map<string, number>();
-    ordered.forEach((item) => { positions.set(item.id, cursor); cursor += item.frame.w + gap; });
-    patchPage(page.id, (p) => ({ ...p, elements: p.elements.map((e) => positions.has(e.id) ? { ...e, frame: { ...e.frame, x: positions.get(e.id)! } } : e) }));
+  const distributeSelection = (axis: "x" | "y" = "x") => {
+    if (selected.filter((e) => !e.locked && !e.hidden).length < 3) return;
+    requireSuccess(getAgentAPI().transaction({ operations: [{ op: "distributeElements", ids: selection, axis }] }));
   };
 
   const deleteSelection = useCallback(() => {
@@ -822,7 +890,7 @@ export default function Home() {
       if (event.key === "Escape") {
         if(gestureRef.current){setDoc(committedRef.current);documentRef.current=committedRef.current;}
         gestureRef.current = null;
-        setEditingId(null); setJsonOpen(false); setDraftLine(null); setDraftTextBox(null); setMarquee(null); setGuides([]); setTool("select"); setShapesOpen(false);
+        setEditingId(null); setJsonOpen(false); setDraftLine(null); setDraftTextBox(null); setMarquee(null); setGuides([]); setTool("select"); setShapesOpen(false); setContextMenu(null);
         if (presenting) setPresenting(false);
         return;
       }
@@ -842,6 +910,37 @@ export default function Home() {
     return () => { window.removeEventListener("keydown", onKeyDown); window.removeEventListener("keyup", onKeyUp); };
   }, [deleteSelection, duplicateSelection, pageId, patchPage, patchTextStyle, presenting, redo, selectedOne, selection, tool, undo,presentationPages,page.id,page.elements,copySelection,pasteSelection,advanceMotion,richTextId,masterEditorId,importReport,cloudOpen,groupSelection,stepZOrder]);
 
+  useEffect(() => {
+    if (!editingId) {
+      const clearTimer = window.setTimeout(() => setRunSelection(null), 0);
+      return () => window.clearTimeout(clearTimer);
+    }
+    const onSelectionChange = () => {
+      const node = textEditorRefs.current.get(editingId);
+      if (!node) return;
+      setRunSelection(selectionOffsets(node));
+    };
+    document.addEventListener("selectionchange", onSelectionChange);
+    onSelectionChange();
+    return () => document.removeEventListener("selectionchange", onSelectionChange);
+  }, [editingId]);
+
+  const applyRunFormat = useCallback((style: Parameters<typeof formatRuns>[3], link?: string) => {
+    const selection = runSelectionRef.current;
+    if (!editingRef.current || !selection || selection.start === selection.end) return false;
+    const item = documentRef.current.pages.find((p) => p.id === pageIdRef.current)?.elements.find((e) => e.id === editingRef.current);
+    if (!item) return false;
+    const base = item.runs ?? [{ text: item.content?.text ?? "" }];
+    patchElement(item.id, { runs: formatRuns(base, selection.start, selection.end, style, link) });
+    return true;
+  }, [patchElement]);
+
+  /** Range-dominant run style at event time (live selection), for shortcut toggles. */
+  const runStyleInSelection = useCallback((key: "bold" | "italic" | "underline" | "strike"): boolean => {
+    const item = documentRef.current.pages.find((p) => p.id === pageIdRef.current)?.elements.find((e) => e.id === editingRef.current);
+    return item ? runStyleInRange(item, runSelectionRef.current, key) : false;
+  }, []);
+
   const commitAgentDocument = useCallback((next: PaperDOMDocument) => {
     // Record each agent transaction synchronously, including back-to-back calls.
     const previous = committedRef.current;
@@ -856,6 +955,13 @@ export default function Home() {
   }, []);
 
   const cloud=useCloud(()=>documentRef.current,commitAgentDocument,()=>!!(gestureRef.current||composingRef.current||richTextId||masterEditorId));
+  const cursorSentAtRef = useRef(0);
+  const sendCursor = useCallback((pageId: string, x: number, y: number) => {
+    const now = Date.now();
+    if (now - cursorSentAtRef.current < 600) return;
+    cursorSentAtRef.current = now;
+    cloud.updateCursor(pageId, x, y);
+  }, [cloud]);
 
   const getAgentAPI = useCallback(() => createAgentAPI({
     getDocument: () => documentRef.current,
@@ -918,57 +1024,47 @@ export default function Home() {
     else if(action==='pptx'){const {downloadPowerPoint}=await import('./presentation-export');await downloadPowerPoint(documentRef.current);}
     else if(action==='html'){const {downloadHTML}=await import('./presentation-export');await downloadHTML(documentRef.current);}
   };
+  const registerTextEditor = useCallback((id: string, node: HTMLDivElement | null) => {
+    if (node) textEditorRefs.current.set(id, node); else textEditorRefs.current.delete(id);
+  }, []);
+  const setElementText = useCallback((item: CanvasElement, text: string) => {
+    if (text === (item.content?.text ?? "")) return;
+    historyKindRef.current = "text";
+    patchElement(item.id, {
+      content: { ...item.content, text, ...(item.content?.paragraphs ? { paragraphs: resyncParagraphs(item.content.paragraphs, text) } : {}) },
+    });
+  }, [patchElement]);
+  const startEditing = useCallback((item: CanvasElement) => setEditingId(item.id), []);
+  const stopEditing = useCallback(() => setEditingId(null), []);
+  const openContextMenu = useCallback((event: React.MouseEvent, item: CanvasElement) => {
+    event.preventDefault();
+    event.stopPropagation();
+    if (!selectionRef.current.includes(item.id)) setSelection([item.id]);
+    setContextMenu({ x: event.clientX, y: event.clientY, elementId: item.id });
+  }, []);
+  const elementHandlers: ElementViewHandlers = useMemo(() => ({
+    beginGesture: beginElementGesture,
+    beginResize,
+    beginRotate,
+    openContextMenu,
+    startEditing,
+    stopEditing,
+    setText: setElementText,
+    register: registerTextEditor,
+    onComposing,
+    patchTextStyle,
+    toggleList: toggleListForElement,
+    applyRunFormat,
+    runStyleInSelection,
+  }), [beginElementGesture, beginResize, beginRotate, openContextMenu, startEditing, stopEditing, setElementText, registerTextEditor, onComposing, patchTextStyle, toggleListForElement, applyRunFormat, runStyleInSelection]);
   const renderElement = (item: CanvasElement) => {
     if (item.hidden || ["connector", "line"].includes(item.type)) return null;
-    const isSelected = selection.includes(item.id), editing = editingId === item.id;
-    return <div key={item.id} data-element-id={item.id} className={`canvas-element element-${item.type === "text" ? "textbox" : item.type} ${isSelected ? "selected" : ""} ${editing ? "editing" : ""}`}
-      style={{ left: item.frame.x, top: item.frame.y, width: item.frame.w, height: item.frame.h, transform: `rotate(${item.frame.rotation}deg)`, zIndex: item.z, opacity: item.style.opacity, background: geometryStyle(item).background ?? item.style.fill, borderColor: item.style.stroke, borderWidth: geometryStyle(item).borderWidth ?? item.style.strokeWidth, borderRadius: item.type === "ellipse" ? 999 : item.style.radius, color: item.style.color, fontSize: item.style.fontSize, fontWeight: item.style.fontWeight, fontFamily: item.style.fontFamily ?? DEFAULT_FONT, fontStyle: item.style.fontStyle ?? "normal", textDecoration: item.style.underline && item.style.strike ? "underline line-through" : item.style.underline ? "underline" : item.style.strike ? "line-through" : "none", lineHeight: item.style.lineHeight ?? 1.28, letterSpacing: item.style.letterSpacing ?? 0, textAlign: item.style.textAlign, alignItems: ["text", "shape", "ellipse"].includes(item.type) ? (item.style.verticalAlign === "bottom" ? "flex-end" : item.style.verticalAlign === "middle" || !item.style.verticalAlign ? "center" : "flex-start") : "stretch" }}
-      onPointerDown={(e) => beginElementGesture(e, item)} onDoubleClick={(e) => { e.stopPropagation(); if (!item.locked&&["text", "shape", "ellipse"].includes(item.type)) setEditingId(item.id); }}>
-      <GeometryFigure item={item} />
-      {["audio","video"].includes(item.type)?<MediaView item={item}/>: ["table","chart"].includes(item.type) ? <DataView item={item}/> : item.type === "component" ? <ComponentView item={item} document={doc}/> : item.type === "plugin" ? <div className="kpi-card"><div className="kpi-icon" style={{ background: item.content?.accent ?? "#6d5dfc" }}><span /></div><div className="kpi-label">{item.content?.label}</div><div className="kpi-value">{item.content?.value}</div><div className="kpi-trend" style={{ color: item.content?.accent }}>↗ {item.content?.trend}</div></div>
-        : item.type === "image" ? (item.content?.src ? <img src={item.content.src} alt={item.content.alt ?? ""} draggable={false} /> : <div className="image-placeholder"><ImageIcon size={46} /><span>Drop or paste an image</span></div>)
-        : <InlineText item={item} editing={editing} onComposing={onComposing}
-          onText={text => { if (text !== item.content?.text) patchElement(item.id, {content: {...item.content, text}}); }}
-          register={(node) => { if (node) textEditorRefs.current.set(item.id, node); else textEditorRefs.current.delete(item.id); }}
-          className="element-text"
-          style={{ padding: item.style.padding ?? 12 }}
-          role={editing ? "textbox" : undefined}
-          aria-label={editing ? `Edit ${item.name}` : undefined}
-          aria-multiline={editing || undefined}
-          data-placeholder={item.type === "text" ? "Type here" : "Label"}
-          spellCheck={editing}
-          onPointerDown={(e) => editing && e.stopPropagation()}
-          onKeyDown={(e) => {
-            const shortcut = (e.metaKey || e.ctrlKey) && ["b", "i", "u"].includes(e.key.toLowerCase());
-            if (shortcut) {
-              e.preventDefault();
-              e.stopPropagation();
-              const key = e.key.toLowerCase();
-              if (key === "b") patchTextStyle(item, { fontWeight: item.style.fontWeight >= 700 ? 400 : 700 });
-              if (key === "i") patchTextStyle(item, { fontStyle: (item.style.fontStyle ?? "normal") === "italic" ? "normal" : "italic" });
-              if (key === "u") patchTextStyle(item, { underline: !(item.style.underline ?? false) });
-              return;
-            }
-            if (e.key === "Escape" || ((e.metaKey || e.ctrlKey) && e.key === "Enter")) {
-              e.preventDefault();
-              e.stopPropagation();
-              e.currentTarget.blur();
-            }
-          }}
-          onBlur={(e) => {
-            if (!editing) return;
-            const text = e.currentTarget.innerText ?? "";
-            if (text !== (item.content?.text ?? "")) patchElement(item.id, { content: { ...item.content, text } });
-            setEditingId(null);
-          }}
-        />}
-      {isSelected && !editing && <><button className="rotate-handle" onPointerDown={(e) => beginRotate(e, item)} aria-label="Rotate" />{["nw", "n", "ne", "e", "se", "s", "sw", "w"].map((h) => <button key={h} className={`resize-handle handle-${h}`} onPointerDown={(e) => beginResize(e, item, h)} aria-label={`Resize ${h}`} />)}</>}
-    </div>;
+    return <ElementView key={item.id} item={item} selected={selection.includes(item.id)} solo={selection.length === 1} editing={editingId === item.id} document={doc} handlers={elementHandlers} />;
   };
 
   return <main className="editor-shell">
-    <header className="topbar" inert={presenting}>
-      <div className="brand-block"><div className="brand-mark">P</div><div className="brand-name">PaperDOM</div><div className="workspace-badge">Workspace</div></div>
+    {/* eslint-disable react-hooks/refs -- every ref-reading callback below (patchElement, applyRunFormat, gestures) runs only from event handlers */}
+    <header className="topbar" inert={presenting}>      <div className="brand-block"><div className="brand-mark">P</div><div className="brand-name">PaperDOM</div><div className="workspace-badge">Workspace</div></div>
       <div className="document-title-wrap"><input className="document-title" value={doc.title} onFocus={(e) => { titleBeforeEditRef.current = e.currentTarget.value; }} onChange={(e) => setDoc((d) => ({ ...d, title: e.target.value }))} onBlur={() => setDoc((d) => d.title === titleBeforeEditRef.current ? d : ({ ...d, revision: d.revision + 1, metadata: { ...d.metadata, updatedAt: new Date().toISOString() } }))} aria-label="Document title" /><div className="saved-state"><Cloud size={13} /><Check size={12} /> {cloud.session?<button className="cloud-status" title={cloud.status} onClick={()=>setCloudOpen(true)}>{cloud.conflicts.length?'Shared: resolve conflict':cloud.status==='Shared changes saved'?'Shared changes saved':'Shared: check sync'}</button>:saveLabel}</div></div>
       <div className="top-actions"><button className="quiet-button" onClick={()=>setCloudOpen(true)}><Cloud size={15}/> Shared</button><button className="quiet-button tools-toggle" aria-pressed={toolsOpen} onClick={()=>setToolsOpen(v=>!v)}>Tools</button><button className="library-open-button" onClick={()=>setLibraryOpen(true)}><Puzzle size={16}/> Library</button><button className="icon-button" title="Undo" disabled={!past.length} onClick={undo}><Undo2 size={17} /></button><button className="icon-button" title="Redo" disabled={!future.length} onClick={redo}><Redo2 size={17} /></button><span className="top-divider" /><button className="quiet-button" onClick={() => setReview({ key: Date.now() })}><Check size={15} /> Review changes</button><button className="quiet-button" onClick={openJson}><Braces size={15} /> JSON</button><button className="export-button" onClick={exportJson}><Share2 size={15} /> Export JSON <ChevronDown size={14} /></button><button className="present-button" onClick={() => { setPresentIndex(Math.max(0,presentationPages.findIndex((p) => p.id === page.id))); setPresenting(true); }}><Play size={15} fill="currentColor" /> Present</button><div className="avatar" aria-label="PaperDOM workspace">PD</div></div>
     </header>
@@ -991,7 +1087,9 @@ export default function Home() {
           <div className="canvas-status"><span>{page.name}</span><span>•</span><span>{pageW} × {pageH}</span></div>
           <div className="workspace-controls">
             <button className={`guides-toggle ${smartGuidesEnabled ? "active" : ""}`} aria-pressed={smartGuidesEnabled} onClick={() => { setSmartGuidesEnabled((enabled) => !enabled); setGuides([]); }} title="Snap to page and object alignment guides"><Magnet size={14} /> Guides</button>
-            <div className="zoom-control"><button onClick={() => setZoom((z) => Math.max(50, z - 10))} aria-label="Zoom out"><ZoomOut size={15} /></button><span>{zoom}%</span><button onClick={() => setZoom((z) => Math.min(150, z + 10))} aria-label="Zoom in"><ZoomIn size={15} /></button></div>
+            <button className={`guides-toggle ${gridEnabled ? "active" : ""}`} aria-pressed={gridEnabled} onClick={() => setGridEnabled((on) => !on)} title="Toggle the layout grid"><Grid2x2 size={14} /> Grid</button>
+            {gridEnabled && <input className="grid-size" aria-label="Grid size" type="number" min={10} max={200} step={10} value={gridSize} onChange={(e) => { const value = Number(e.target.value); if (Number.isFinite(value)) setGridSize(clamp(value, 10, 200)); }} />}
+            <div className="zoom-control"><button onClick={() => setZoom((z) => Math.max(MIN_ZOOM, z - 10))} aria-label="Zoom out"><ZoomOut size={15} /></button><span>{zoom}%</span><button onClick={() => setZoom((z) => Math.min(MAX_ZOOM, z + 10))} aria-label="Zoom in"><ZoomIn size={15} /></button><button className="zoom-fit" onClick={() => setZoom(100)} title="Fit to window">Fit</button></div>
           </div>
         </div>
         {selected.length > 0 && (() => {
@@ -1030,7 +1128,28 @@ export default function Home() {
             {selected.some((e) => e.groupId) && <button className="format-action" title="Ungroup (Ctrl+Shift+G)" aria-label="Ungroup" onClick={() => groupSelection(true)}><Ungroup size={14} /></button>}
           </div>;
         })()}
-        <div className="workspace-scroll" ref={workspaceScrollRef}><div className="workspace-stage" style={{ width: pageW * scale, height: pageH * scale }}><div ref={pageRef} className="page-canvas" style={{ width: pageW, height: pageH, background: composePage(page,doc).background.color, transform: `scale(${scale})` }} onPointerDown={onCanvasDown} onDragOver={event=>{if(event.dataTransfer.types.includes("Files"))event.preventDefault();}} onDrop={event=>{const file=[...event.dataTransfer.files].find(file=>file.type.startsWith("image/"));if(file){event.preventDefault();replaceImageRef.current=null;insertImageFile(file);}}}>
+        {editingId && (() => {
+          const item = page.elements.find((e) => e.id === editingId);
+          if (!item || !["text", "shape", "ellipse"].includes(item.type)) return null;
+          const hasRange = Boolean(runSelection && runSelection.end > runSelection.start);
+          const pressed = (key: "bold" | "italic" | "underline" | "strike") => hasRange && runStyleInRange(item, runSelection, key);
+                    return <div className="run-toolbar" role="toolbar" aria-label="Selected text formatting" data-testid="run-toolbar">
+            <span className="run-toolbar-hint">{hasRange ? "Selected text" : "Select text to format runs"}</span>
+            <div className="format-group" role="group" aria-label="Selected text style">
+              <button aria-label="Bold selection" aria-pressed={pressed("bold")} disabled={!hasRange} onPointerDown={(e) => e.preventDefault()} onClick={() => applyRunFormat({ fontWeight: pressed("bold") ? 400 : 700 })}><Bold size={14} /></button>
+              <button aria-label="Italicize selection" aria-pressed={pressed("italic")} disabled={!hasRange} onPointerDown={(e) => e.preventDefault()} onClick={() => applyRunFormat({ fontStyle: pressed("italic") ? "normal" : "italic" })}><Italic size={14} /></button>
+              <button aria-label="Underline selection" aria-pressed={pressed("underline")} disabled={!hasRange} onPointerDown={(e) => e.preventDefault()} onClick={() => applyRunFormat({ underline: !pressed("underline") })}><Underline size={14} /></button>
+              <button aria-label="Strikethrough selection" aria-pressed={pressed("strike")} disabled={!hasRange} onPointerDown={(e) => e.preventDefault()} onClick={() => applyRunFormat({ strike: !pressed("strike") })}><Strikethrough size={14} /></button>
+            </div>
+            <label className="format-swatch" title="Selected text color"><Type size={13} /><input type="color" aria-label="Selected text color" disabled={!hasRange} onChange={(e) => applyRunFormat({ color: e.target.value })} /></label>
+            <span className="run-link-field"><Link2 size={13} /><input aria-label="Selected text link" placeholder="https://" disabled={!hasRange} onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); applyRunFormat({}, e.currentTarget.value); } }} onBlur={(e) => { const value = e.currentTarget.value.trim(); if (value) applyRunFormat({}, value); }} /></span>
+            <button className="run-clear" disabled={!hasRange} onClick={() => applyRunFormat({ fontWeight: 400, fontStyle: 'normal', underline: false, strike: false })}>Clear</button>
+          </div>;
+        })()}
+        <div className="workspace-scroll" ref={workspaceScrollRef}><div className="workspace-stage" style={{ width: pageW * scale, height: pageH * scale }}>
+          {gridEnabled && <div className="workspace-ruler ruler-top" aria-hidden="true">{Array.from({ length: Math.floor(pageW / 100) + 1 }, (_, i) => <span key={i} style={{ left: i * 100 * scale }}>{i * 100}</span>)}</div>}
+          {gridEnabled && <div className="workspace-ruler ruler-left" aria-hidden="true">{Array.from({ length: Math.floor(pageH / 100) + 1 }, (_, i) => <span key={i} style={{ top: i * 100 * scale }}>{i * 100}</span>)}</div>}
+          <div ref={pageRef} className={`page-canvas ${gridEnabled ? "grid-on" : ""}`} style={{ width: pageW, height: pageH, background: composePage(page,doc).background.color, transform: `scale(${scale})`, ...(gridEnabled ? { ["--grid-size" as string]: `${gridSize}px` } : {}) }} onPointerDown={onCanvasDown} onPointerMove={(event) => { if (cloud.session && !presenting) { const p = point(event.clientX, event.clientY); sendCursor(page.id, p.x, p.y); } }} onContextMenu={(event) => { if (event.target === event.currentTarget) { event.preventDefault(); setContextMenu({ x: event.clientX, y: event.clientY }); } }} onDragOver={event=>{if(event.dataTransfer.types.includes("Files"))event.preventDefault();}} onDrop={event=>{const file=[...event.dataTransfer.files].find(file=>file.type.startsWith("image/"));if(file){event.preventDefault();replaceImageRef.current=null;insertImageFile(file);}}}>
           {page.masterId&&<div className="master-surface"><StaticPage page={{...page,elements:[]}} document={doc}/></div>}
           <svg className="connector-layer" viewBox={`0 0 ${pageW} ${pageH}`} aria-hidden="true"><defs><marker id="arrowhead" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto" markerUnits="strokeWidth"><path d="M0,0 L0,6 L9,3 z" fill="context-stroke" /></marker></defs>
             {page.elements.filter((e) => !e.hidden && ["connector", "line"].includes(e.type)).map((e) => { const a = endpointPosition(e.from, page.elements), b = endpointPosition(e.to, page.elements), isSelected = selection.includes(e.id); return <g key={e.id} className={isSelected ? "connector-selected" : ""} onPointerDown={(event) => beginElementGesture(event as unknown as React.PointerEvent, e)}><line x1={a.x} y1={a.y} x2={b.x} y2={b.y} stroke={e.style.stroke} strokeWidth={e.style.strokeWidth} strokeDasharray={e.style.lineStyle === "dashed" ? "10 8" : undefined} markerEnd={e.type === "connector" ? "url(#arrowhead)" : undefined} /><line className="connector-hit" x1={a.x} y1={a.y} x2={b.x} y2={b.y} />{isSelected && <><circle className="connector-endpoint" cx={a.x} cy={a.y} r="7" onPointerDown={(event) => beginEndpoint(event, e, "from")} /><circle className="connector-endpoint" cx={b.x} cy={b.y} r="7" onPointerDown={(event) => beginEndpoint(event, e, "to")} /></>}</g>; })}
@@ -1039,6 +1158,8 @@ export default function Home() {
           {guides.map((guide, index) => <div key={`${guide.axis}-${guide.position}-${index}`} className={`snap-guide snap-guide-${guide.axis} guide-${guide.kind}`} style={guide.axis === "x" ? { left: guide.position } : { top: guide.position }}><span>{guide.label}</span></div>)}
           {draftTextBox && <div className="text-box-draft" data-testid="text-box-draft" style={{ left: draftTextBox.x, top: draftTextBox.y, width: draftTextBox.w, height: draftTextBox.h }}><span>Text box</span></div>}
           {marquee && <div className="marquee" style={{ left: marquee.x, top: marquee.y, width: marquee.w, height: marquee.h }} />}
+          {selection.length > 1 && !editingId && multiSelectionBBox && <div className="selection-bbox" style={{ left: multiSelectionBBox.x, top: multiSelectionBBox.y, width: multiSelectionBBox.w, height: multiSelectionBBox.h }}>{["nw", "n", "ne", "e", "se", "s", "sw", "w"].map((h) => <button key={h} className={`resize-handle handle-${h}`} onPointerDown={(e) => beginScaleSelection(e, h)} aria-label={`Scale selection ${h}`} />)}</div>}
+          {cloud.peers.filter((peer) => peer.pageId === page.id && peer.x != null && peer.y != null).map((peer) => <div key={peer.user_id} className="remote-cursor" style={{ left: peer.x ?? 0, top: peer.y ?? 0 }}><svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="true"><path d="M4 2 L20 12 L12 13 L8 21 Z" fill="#0ea5e9" stroke="white" strokeWidth="1.5" /></svg><span>{peer.name}</span></div>)}
         </div></div></div>
         <div className="workspace-hint"><span><kbd>T</kbd> text box</span><span><kbd>Shift</kbd> multi-select</span><span><kbd>Alt</kbd> ignore guides</span><span><kbd>Space</kbd> pan</span><span className="revision-pill">Revision {doc.revision}</span></div>
       </section>
@@ -1046,12 +1167,17 @@ export default function Home() {
         <div className="inspector-heading"><div><span className="eyebrow">Inspector</span><strong>{selectedOne ? selectedOne.name : selected.length > 1 ? `${selected.length} objects` : "Page"}</strong></div></div>
         <fieldset className="inspector-fields" disabled={selectedOne?.locked}>
         {selectedOne?.component && <section className="inspector-section component-properties"><div className="section-title">Component properties</div><p className="component-link">Linked · {effectiveLibrary(doc).components.find(c=>c.id===selectedOne.component?.definitionId)?.name}</p>{Object.entries(effectiveLibrary(doc).components.find(c=>c.id===selectedOne.component?.definitionId)?.properties??{}).map(([key,property])=><label className="full-field" key={key}><span>{property.label}</span><textarea aria-label={`Component ${property.label}`} value={selectedOne.component!.props[key]??property.default} onChange={e=>getAgentAPI().updateComponentProps(selectedOne.id,{[key]:e.target.value})}/></label>)}<label className="color-field"><span>Instance accent</span><input aria-label="Instance accent" type="color" value={Object.values(selectedOne.component.overrides??{}).map(v=>v.color??v.fill).find(Boolean)??doc.theme?.accent??defaultTheme.accent} onChange={e=>{const definition=effectiveLibrary(doc).components.find(c=>c.id===selectedOne.component?.definitionId)!;const overrides=structuredClone(selectedOne.component!.overrides??{});for(const t of definition.tokens.filter(t=>t.token==='accent')) overrides[t.elementId]={...overrides[t.elementId],[t.field]:e.target.value};getAgentAPI().transaction({operations:[{op:'patchElement',elementId:selectedOne.id,patch:{component:{...selectedOne.component!,overrides}}}]});}}/></label><button className="edit-text-button" onClick={()=>getAgentAPI().transaction({operations:[{op:'patchElement',elementId:selectedOne.id,patch:{component:{...selectedOne.component!,overrides:{}}}}]})}>Reset style overrides</button></section>}
-        {selectedOne&&['table','chart'].includes(selectedOne.type)&&<section className="inspector-section"><div className="section-title">{selectedOne.type==='table'?'Table data':'Chart data'}</div><p className="data-instructions">Separate columns with tabs and rows with new lines.</p>{selectedOne.chart&&<><label className="full-field"><span>Chart title</span><input aria-label="Chart title" value={selectedOne.chart.title} onChange={e=>patchElement(selectedOne.id,{chart:{...selectedOne.chart!,title:e.target.value}})}/></label><label className="full-field"><span>Chart type</span><select aria-label="Chart type" value={selectedOne.chart.kind} onChange={e=>patchElement(selectedOne.id,{chart:{...selectedOne.chart!,kind:e.target.value as 'bar'|'line'}})}><option value="bar">Bar</option><option value="line">Line</option></select></label></>}
+        {selectedOne&&['table','chart'].includes(selectedOne.type)&&<section className="inspector-section"><div className="section-title">{selectedOne.type==='table'?'Table data':'Chart data'}</div><p className="data-instructions">Separate columns with tabs and rows with new lines.</p>        {selectedOne.chart&&<><label className="full-field"><span>Chart title</span><input aria-label="Chart title" value={selectedOne.chart.title} onChange={e=>patchElement(selectedOne.id,{chart:{...selectedOne.chart!,title:e.target.value}})}/></label><label className="full-field"><span>Chart type</span><select aria-label="Chart type" value={selectedOne.chart.kind} onChange={e=>patchElement(selectedOne.id,{chart:{...selectedOne.chart!,kind:e.target.value as 'bar'|'line'}})}><option value="bar">Bar</option><option value="line">Line</option></select></label><label className="tools-check"><input type="checkbox" checked={selectedOne.chart.grid!==false} onChange={e=>patchElement(selectedOne.id,{chart:{...selectedOne.chart!,grid:e.target.checked}})}/>Gridlines</label><div className="chart-colors">{Array.from({length:(selectedOne.chart.series?.length??1)},(_,si)=>{const colors=selectedOne.chart!.colors??[];return <label className="color-field" key={si}><span>Series {si+1}</span><input type="color" aria-label={`Series ${si+1} color`} value={colors[si]??['#6d5dfc','#0ea5e9','#10b981','#f59e0b','#ec4899'][si%5]} onChange={e=>{const next=[...colors];next[si]=e.target.value;patchElement(selectedOne.id,{chart:{...selectedOne.chart!,colors:next}});}}/></label>;})}</div></>}
         <textarea className="data-editor" aria-label="Object data" key={selectedOne.id+JSON.stringify(selectedOne.table??selectedOne.chart)} defaultValue={selectedOne.table?selectedOne.table.rows.map(r=>r.join('\t')).join('\n'):selectedOne.chart?.labels.map((label,i)=>`${label}\t${selectedOne.chart!.values[i]}`).join('\n')} onKeyDown={e=>e.stopPropagation()} onBlur={e=>{try{if(selectedOne.table)patchElement(selectedOne.id,{table:{...selectedOne.table,rows:parseTable(e.target.value)}});else if(selectedOne.chart)patchElement(selectedOne.id,{chart:{...selectedOne.chart,...parseChart(e.target.value)}});setDataError('');}catch(error){setDataError(error instanceof Error?error.message:'Invalid data');}}}/>{dataError&&<p role="alert">{dataError}</p>}{selectedOne.table&&<label><input type="checkbox" checked={selectedOne.table.header} onChange={e=>patchElement(selectedOne.id,{table:{...selectedOne.table!,header:e.target.checked}})}/>Header row</label>}</section>}
         {selectedOne ? <>
           <section className="inspector-section"><div className="section-title">Position & size</div><div className="field-grid"><Field label="X" value={selectedOne.frame.x} onChange={(x) => patchFrame(selectedOne.id, { x })} /><Field label="Y" value={selectedOne.frame.y} onChange={(y) => patchFrame(selectedOne.id, { y })} /><Field label="W" value={selectedOne.frame.w} min={1} onChange={(w) => patchFrame(selectedOne.id, { w })} /><Field label="H" value={selectedOne.frame.h} min={1} onChange={(h) => patchFrame(selectedOne.id, { h })} /></div><div className="field-row"><Field label="°" value={selectedOne.frame.rotation} onChange={(rotation) => patchFrame(selectedOne.id, { rotation })} /><button className="lock-ratio" disabled={selectedOne.frame.w===0||selectedOne.frame.h===0} aria-label="Lock aspect ratio" aria-pressed={selectedOne.aspectLocked??false} onClick={()=>patchElement(selectedOne.id,{aspectLocked:!selectedOne.aspectLocked})}><Lock size={14} /></button></div></section>
           <section className="inspector-section"><div className="section-title">Arrange</div><div className="arrange-grid"><button onClick={() => patchElement(selectedOne.id, { z: Math.max(...page.elements.map((e) => e.z)) + 1 })}><BringToFront size={15} /> Front</button><button onClick={() => patchElement(selectedOne.id, { z: Math.min(...page.elements.map((e) => e.z)) - 1 })}><SendToBack size={15} /> Back</button></div></section>
-          <section className="inspector-section"><div className="section-title">Appearance</div>{selectedOne.type === "shape" && <label className="font-family-field"><span>Shape</span><select aria-label="Shape geometry" value={selectedOne.geometry ?? "rect"} onChange={(e) => patchElement(selectedOne.id, { geometry: e.target.value === "rect" ? undefined : e.target.value as CanvasElement["geometry"] })}><option value="rect">Rectangle</option>{Object.entries(SHAPE_GEOMETRIES).map(([geometry, { label }]) => <option key={geometry} value={geometry}>{label}</option>)}</select></label>}<label className="color-field"><span>Fill</span><input type="color" value={selectedOne.style.fill === "transparent" ? "#ffffff" : selectedOne.style.fill} onChange={(e) => patchElement(selectedOne.id, { style: { ...selectedOne.style, fill: e.target.value } })} /><code>{selectedOne.style.fill}</code></label><label className="color-field"><span>Border</span><input type="color" value={selectedOne.style.stroke === "transparent" ? "#ffffff" : selectedOne.style.stroke} onChange={(e) => patchElement(selectedOne.id, { style: { ...selectedOne.style, stroke: e.target.value } })} /><code>{selectedOne.style.stroke}</code></label><div className="field-grid"><Field label="R" value={selectedOne.style.radius} min={0} onChange={(radius) => patchElement(selectedOne.id, { style: { ...selectedOne.style, radius } })} /><Field label="%" value={selectedOne.style.opacity * 100} min={0} max={100} onChange={(v) => patchElement(selectedOne.id, { style: { ...selectedOne.style, opacity: v / 100 } })} /></div></section>
+          <section className="inspector-section"><div className="section-title">Appearance</div>{selectedOne.type === "shape" && <label className="font-family-field"><span>Shape</span><select aria-label="Shape geometry" value={selectedOne.geometry ?? "rect"} onChange={(e) => patchElement(selectedOne.id, { geometry: e.target.value === "rect" ? undefined : e.target.value as CanvasElement["geometry"] })}><option value="rect">Rectangle</option>{Object.entries(SHAPE_GEOMETRIES).map(([geometry, { label }]) => <option key={geometry} value={geometry}>{label}</option>)}</select></label>}<label className="color-field"><span>Fill</span><input type="color" value={selectedOne.style.fill === "transparent" ? "#ffffff" : selectedOne.style.fill} onChange={(e) => patchElement(selectedOne.id, { style: { ...selectedOne.style, fill: e.target.value } })} /><code>{selectedOne.style.fill}</code></label><label className="color-field"><span>Border</span><input type="color" value={selectedOne.style.stroke === "transparent" ? "#ffffff" : selectedOne.style.stroke} onChange={(e) => patchElement(selectedOne.id, { style: { ...selectedOne.style, stroke: e.target.value } })} /><code>{selectedOne.style.stroke}</code></label><div className="field-grid"><Field label="R" value={selectedOne.style.radius} min={0} onChange={(radius) => patchElement(selectedOne.id, { style: { ...selectedOne.style, radius } })} /><Field label="%" value={selectedOne.style.opacity * 100} min={0} max={100} onChange={(v) => patchElement(selectedOne.id, { style: { ...selectedOne.style, opacity: v / 100 } })} /></div>
+            {!["image", "audio", "video", "connector", "line"].includes(selectedOne.type) && <div className="style-subsection"><div className="control-label">Gradient fill</div><div className="field-row"><label className="color-field"><span>From</span><input type="color" aria-label="Gradient start" value={selectedOne.style.fillGradient?.from ?? "#6d5dfc"} onChange={(e) => patchElement(selectedOne.id, { style: { ...selectedOne.style, fillGradient: { from: e.target.value, to: selectedOne.style.fillGradient?.to ?? "#0ea5e9", angle: selectedOne.style.fillGradient?.angle ?? 135 } } })} /></label><label className="color-field"><span>To</span><input type="color" aria-label="Gradient end" value={selectedOne.style.fillGradient?.to ?? "#0ea5e9"} onChange={(e) => patchElement(selectedOne.id, { style: { ...selectedOne.style, fillGradient: { from: selectedOne.style.fillGradient?.from ?? "#6d5dfc", to: e.target.value, angle: selectedOne.style.fillGradient?.angle ?? 135 } } })} /></label><Field label="Angle" value={selectedOne.style.fillGradient?.angle ?? 135} min={0} max={360} onChange={(angle) => patchElement(selectedOne.id, { style: { ...selectedOne.style, fillGradient: { from: selectedOne.style.fillGradient?.from ?? "#6d5dfc", to: selectedOne.style.fillGradient?.to ?? "#0ea5e9", angle } } })} /></div><button className="quiet-sub-button" onClick={() => patchElement(selectedOne.id, { style: { ...selectedOne.style, fillGradient: undefined } })}>Remove gradient</button></div>}
+            {!["audio", "video", "connector", "line", "component", "table", "chart", "plugin"].includes(selectedOne.type) && <div className="style-subsection"><div className="control-label">Shadow</div><div className="field-row"><label className="color-field"><span>Color</span><input type="color" aria-label="Shadow color" value={selectedOne.style.shadow?.color ?? "#0f172a"} onChange={(e) => patchElement(selectedOne.id, { style: { ...selectedOne.style, shadow: { color: e.target.value, blur: selectedOne.style.shadow?.blur ?? 24, offsetX: selectedOne.style.shadow?.offsetX ?? 0, offsetY: selectedOne.style.shadow?.offsetY ?? 12 } } })} /></label><Field label="Blur" value={selectedOne.style.shadow?.blur ?? 0} min={0} max={120} onChange={(blur) => patchElement(selectedOne.id, { style: { ...selectedOne.style, shadow: { color: selectedOne.style.shadow?.color ?? "#0f172a", blur, offsetX: selectedOne.style.shadow?.offsetX ?? 0, offsetY: selectedOne.style.shadow?.offsetY ?? 0 } } })} /></div><div className="field-grid"><Field label="X" value={selectedOne.style.shadow?.offsetX ?? 0} min={-120} max={120} onChange={(offsetX) => patchElement(selectedOne.id, { style: { ...selectedOne.style, shadow: { color: selectedOne.style.shadow?.color ?? "#0f172a", blur: selectedOne.style.shadow?.blur ?? 24, offsetX, offsetY: selectedOne.style.shadow?.offsetY ?? 0 } } })} /><Field label="Y" value={selectedOne.style.shadow?.offsetY ?? 0} min={-120} max={120} onChange={(offsetY) => patchElement(selectedOne.id, { style: { ...selectedOne.style, shadow: { color: selectedOne.style.shadow?.color ?? "#0f172a", blur: selectedOne.style.shadow?.blur ?? 24, offsetX: selectedOne.style.shadow?.offsetX ?? 0, offsetY } } })} /></div><button className="quiet-sub-button" onClick={() => patchElement(selectedOne.id, { style: { ...selectedOne.style, shadow: undefined } })}>Remove shadow</button></div>}
+            {selectedOne.type === "image" && <div className="style-subsection"><div className="control-label">Image fit</div><div className="field-grid"><label className="select-field"><span>Fit</span><select aria-label="Image fit" value={selectedOne.style.fit ?? "cover"} onChange={(e) => patchElement(selectedOne.id, { style: { ...selectedOne.style, fit: e.target.value as "cover" | "contain" } })}><option value="cover">Cover (crop)</option><option value="contain">Contain (letterbox)</option></select></label><Field label="Focus X" value={(selectedOne.style.focal?.x ?? 0.5) * 100} min={0} max={100} onChange={(v) => patchElement(selectedOne.id, { style: { ...selectedOne.style, focal: { x: v / 100, y: selectedOne.style.focal?.y ?? 0.5 } } })} /><Field label="Focus Y" value={(selectedOne.style.focal?.y ?? 0.5) * 100} min={0} max={100} onChange={(v) => patchElement(selectedOne.id, { style: { ...selectedOne.style, focal: { x: selectedOne.style.focal?.x ?? 0.5, y: v / 100 } } })} /></div></div>}
+            {["text", "shape", "ellipse"].includes(selectedOne.type) && <div className="style-subsection"><div className="control-label">Text fit</div><div className="segmented-control" role="group" aria-label="Text fit">{(["none", "grow", "shrink"] as const).map((mode) => <button key={mode} aria-pressed={(selectedOne.style.autoFit ?? "none") === mode} className={(selectedOne.style.autoFit ?? "none") === mode ? "active" : ""} onClick={() => patchTextStyle(selectedOne, { autoFit: mode })}>{mode === "none" ? "Fixed" : mode === "grow" ? "Auto-grow" : "Shrink"}</button>)}</div></div>}
+          </section>
           {["text", "shape", "ellipse"].includes(selectedOne.type) && <section className="inspector-section"><button disabled={selectedOne.locked} onClick={()=>setRichTextId(selectedOne.id)}>Rich text and links</button>
             <div className="section-title">Typography</div>
             <button className="edit-text-button" onClick={() => setEditingId(selectedOne.id)}><Type size={14} /> Edit text <span>Enter</span></button>
@@ -1079,8 +1205,9 @@ export default function Home() {
           {selectedOne.media&&<section className="inspector-section"><div className="section-title">Media playback</div>{(['autoplay','loop','muted']as const).map(key=><label className="tools-check" key={key}><input type="checkbox" checked={selectedOne.media![key]} onChange={e=>patchElement(selectedOne.id,{media:{...selectedOne.media!,[key]:e.target.checked}})}/>{key}</label>)}<Field label="Start" min={0} max={selectedOne.media.end?selectedOne.media.end-.01:36000} value={selectedOne.media.start} onChange={start=>patchElement(selectedOne.id,{media:{...selectedOne.media!,start}})}/><Field label="End (0 = full)" min={0} value={selectedOne.media.end??0} onChange={end=>{if(!end||end>selectedOne.media!.start)patchElement(selectedOne.id,{media:{...selectedOne.media!,end:end||undefined}});}}/><label className="full-field"><span>Media description</span><input value={selectedOne.content?.alt??''} onChange={e=>patchElement(selectedOne.id,{content:{...selectedOne.content,alt:e.target.value}})}/></label><label className="full-field"><span>Captions URL (.vtt)</span><input defaultValue={selectedOne.media.captions??''} onBlur={e=>{const value=e.target.value;if(!value||/^https:\/\//.test(value))patchElement(selectedOne.id,{media:{...selectedOne.media!,captions:value||undefined}});else setSaveLabel('Captions require an HTTPS URL');}}/></label></section>}
           {selectedOne.type === "image" && <section className="inspector-section"><div className="section-title">Image</div><label className="full-field"><span>Alt text</span><input value={selectedOne.content?.alt ?? ""} onChange={(e) => patchElement(selectedOne.id, { content: { ...selectedOne.content, alt: e.target.value } })} /></label><button className="replace-image-button" onClick={() => {replaceImageRef.current=selectedOne.id;imageInputRef.current?.click();}}><Upload size={14} /> Replace image</button></section>}
           {["connector", "line"].includes(selectedOne.type) && <section className="inspector-section"><div className="section-title">Line</div><div className="field-grid"><Field label="Width" value={selectedOne.style.strokeWidth} min={1} max={16} onChange={(strokeWidth) => patchElement(selectedOne.id, { style: { ...selectedOne.style, strokeWidth } })} /><label className="select-field"><span>Style</span><select value={selectedOne.style.lineStyle ?? "solid"} onChange={(e) => patchElement(selectedOne.id, { style: { ...selectedOne.style, lineStyle: e.target.value as "solid" | "dashed" } })}><option value="solid">Solid</option><option value="dashed">Dashed</option></select></label></div></section>}
-        </> : selected.length > 1 ? <section className="inspector-section"><div className="section-title">Align selection</div><div className="alignment-actions"><button onClick={() => alignSelection("left")}><AlignLeft size={16} /> Left</button><button onClick={() => alignSelection("center")}><AlignCenter size={16} /> Center</button><button onClick={() => alignSelection("top")}><AlignLeft size={16} className="rotate-90" /> Top</button><button onClick={() => alignSelection("middle")}><AlignCenter size={16} className="rotate-90" /> Middle</button><button className="wide-action" onClick={distributeSelection} disabled={selected.length < 3}><MoveRight size={16} /> Distribute horizontally</button></div></section> : <>
+        </> : selected.length > 1 ? <section className="inspector-section"><div className="section-title">Align selection</div><label className="tools-check align-relative"><input type="checkbox" checked={alignToPage} onChange={(e) => setAlignToPage(e.target.checked)} />Align to page instead of selection</label><div className="alignment-actions"><button onClick={() => alignSelection("left", alignToPage ? "page" : "selection")}><AlignLeft size={16} /> Left</button><button onClick={() => alignSelection("centerX", alignToPage ? "page" : "selection")}><AlignCenter size={16} /> Center</button><button onClick={() => alignSelection("right", alignToPage ? "page" : "selection")}><AlignRight size={16} /> Right</button><button onClick={() => alignSelection("top", alignToPage ? "page" : "selection")}><AlignLeft size={16} className="rotate-90" /> Top</button><button onClick={() => alignSelection("centerY", alignToPage ? "page" : "selection")}><AlignCenter size={16} className="rotate-90" /> Middle</button><button onClick={() => alignSelection("bottom", alignToPage ? "page" : "selection")}><AlignRight size={16} className="rotate-90" /> Bottom</button><button className="wide-action" onClick={() => distributeSelection("x")} disabled={selected.length < 3}><MoveRight size={16} /> Distribute horizontally</button><button className="wide-action" onClick={() => distributeSelection("y")} disabled={selected.length < 3}><MoveRight size={16} className="rotate-90" /> Distribute vertically</button></div></section> : <>
           <section className="inspector-section page-properties"><div className="section-title">Page</div><label className="full-field"><span>Name</span><input value={page.name} onChange={(e) => patchPage(page.id, (p) => ({ ...p, name: e.target.value }))} /></label><label className="color-field"><span>Background</span><input type="color" value={page.background.color} onChange={(e) => patchPage(page.id, (p) => ({ ...p, background: { color: e.target.value } }))} /><code>{page.background.color}</code></label><div className="page-preset">{pageW===pageH?"Square":pageW>pageH?"Landscape":"Portrait"} · {pageW} × {pageH}</div></section>
+          <section className="inspector-section"><div className="section-title">Comments</div><div className="comment-list">{(page.comments??[]).length===0&&<p className="comment-empty">No comments on this slide.</p>}{(page.comments??[]).map((comment)=><div key={comment.id} className={`slide-comment ${comment.resolved?"resolved":""}`}><div className="comment-head"><strong>{comment.author}</strong><time>{new Date(comment.createdAt).toLocaleDateString()}</time></div><p>{comment.text}</p><div className="comment-actions"><button onClick={()=>patchPage(page.id,p=>({...p,comments:(p.comments??[]).map(c=>c.id===comment.id?{...c,resolved:!c.resolved}:c)}))}>{comment.resolved?"Reopen":"Resolve"}</button><button onClick={()=>patchPage(page.id,p=>({...p,comments:(p.comments??[]).filter(c=>c.id!==comment.id)}))}>Delete</button></div></div>)}</div><form className="comment-form" onSubmit={(e)=>{e.preventDefault();const form=e.currentTarget;const input=form.elements.namedItem("comment-text") as HTMLInputElement|null;const text=input?.value.trim();if(!text)return;patchPage(page.id,p=>({...p,comments:[...(p.comments??[]),{id:uid("comment"),author:"You",text,createdAt:new Date().toISOString()}]}));if(input)input.value="";}}><input name="comment-text" aria-label="New comment" placeholder="Add a comment for this slide…" /><button type="submit">Comment</button></form></section>
           <section className="inspector-section structure-card"><div className="structure-icon"><Braces size={18} /></div><strong>Structured underneath</strong><p>{page.elements.length} typed objects on this page. Every visible element has a stable ID, frame, style, and content payload.</p></section>
         </>}
         </fieldset><div className="inspector-footer"><div><span className="status-dot" /> Renderer healthy</div><span>{selection.length ? `${selection.length} selected` : "No selection"}</span></div>
@@ -1121,6 +1248,34 @@ export default function Home() {
       </aside>
     </div>}
 
+    {contextMenu && (() => {
+      const items = contextMenu.elementId
+        ? [
+          ...(selectedOne && ["text", "shape", "ellipse"].includes(selectedOne.type) ? [{ label: "Edit text", action: () => setEditingId(selectedOne.id) }] : []),
+          { label: "Duplicate", action: duplicateSelection },
+          { label: "Copy", action: () => copySelection() },
+          { label: "Cut", action: () => copySelection(true) },
+          ...(selectedOne ? [{ label: selectedOne.locked ? "Unlock" : "Lock", action: () => requireSuccess(getAgentAPI().transaction({ operations: selection.map((id) => ({ op: "patchElement", elementId: id, patch: { locked: !selectedOne.locked } })) })) },
+            { label: selectedOne.hidden ? "Show" : "Hide", action: () => requireSuccess(getAgentAPI().transaction({ operations: selection.map((id) => ({ op: "patchElement", elementId: id, patch: { hidden: !selectedOne.hidden } })) })) }] : []),
+          { label: "Bring to front", action: () => edgeZOrder(true) },
+          { label: "Send to back", action: () => edgeZOrder(false) },
+          ...(selected.length > 1 ? [{ label: "Group", action: () => groupSelection() }] : []),
+          ...(selected.some((e) => e.groupId) ? [{ label: "Ungroup", action: () => groupSelection(true) }] : []),
+          { label: "Delete", danger: true, action: deleteSelection },
+        ]
+        : [
+          { label: "Paste", action: () => pasteSelection() },
+          { label: "Select all", action: () => setSelection(page.elements.filter((e) => !e.locked && !e.hidden).map((e) => e.id)) },
+          { label: "Add text box", action: () => { setTool("text"); } },
+          { label: "Toggle grid", action: () => setGridEnabled((on) => !on) },
+        ];
+      return <div className="menu-backdrop" onPointerDown={() => setContextMenu(null)} onContextMenu={(e) => { e.preventDefault(); setContextMenu(null); }}>
+        <div className="context-menu" role="menu" aria-label="Object menu" style={{ left: Math.min(contextMenu.x, viewport.width - 230), top: Math.min(contextMenu.y, viewport.height - 320) }}>
+          {items.map((item) => <button key={item.label} role="menuitem" className={`context-item ${item.danger ? "danger" : ""}`} onClick={() => { item.action(); setContextMenu(null); }}>{item.label}</button>)}
+        </div>
+      </div>;
+    })()}
+
     <div className="print-deck" aria-hidden="true">{presentationPages.map(p=><section key={p.id} className="print-slide"><svg viewBox={`0 0 ${p.size.width} ${p.size.height}`} width="100%" height="100%"><foreignObject width={p.size.width} height={p.size.height}><StaticPage page={p} document={doc}/></foreignObject></svg></section>)}</div>
     {presenting && presentPage && <div className="present-overlay" role="dialog" aria-modal="true" aria-label="Presentation">
       <div className="present-top"><div className="present-brand"><div className="brand-mark">P</div><div><strong>{doc.title}</strong><span>Read-only presentation · {Math.floor(elapsed/60)}:{String(elapsed%60).padStart(2,"0")}</span></div></div><button className="quiet-button" onClick={()=>setShowNotes(v=>!v)}>Speaker notes</button><button className="quiet-button" onClick={()=>setBlackout(v=>!v)}>Black screen (B)</button><button autoFocus className="present-close" onClick={() => setPresenting(false)}><X size={18} /> Exit presentation</button></div>
@@ -1129,4 +1284,5 @@ export default function Home() {
       <div className="present-controls"><button aria-label="Previous slide" disabled={presentIndex === 0} onClick={() => setPresentIndex((i) => Math.max(0, i - 1))}><ArrowLeft size={17} /></button><span><strong>{presentPage.name}</strong> · {presentIndex + 1} / {presentationPages.length}</span><button aria-label="Next slide" onClick={() => {if(!advanceMotion())setPresentIndex((i) => Math.min(presentationPages.length - 1, i + 1));}}><ArrowRight size={17} /></button></div>
     </div>}
   </main>;
+  /* eslint-enable react-hooks/refs */
 }

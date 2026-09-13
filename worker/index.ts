@@ -7,6 +7,8 @@ interface Env {
   ASSETS: Fetcher;
   DB: D1Database;
   BUCKET: R2Bucket;
+  /** Optional bearer token enabling portable auth outside the Sites dispatcher. */
+  PAPERDOM_TOKEN?: string;
   IMAGES: {
     input(stream: ReadableStream): {
       transform(options: Record<string, unknown>): {

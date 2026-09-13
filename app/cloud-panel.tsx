@@ -11,6 +11,9 @@ type Snapshot = {
 type Peer = {
     user_id: string;
     name: string;
+    pageId?: string | null;
+    x?: number | null;
+    y?: number | null;
 };
 type APIResponse = Snapshot & {
     error?: string;
@@ -23,6 +26,11 @@ type APIResponse = Snapshot & {
     members: {
         user_id: string;
         role: string;
+    }[];
+    versions?: {
+        key: string;
+        version: number;
+        size: number;
     }[];
 };
 async function api(path: string, method = 'GET', data?: unknown) { const response = await fetch(`/api/decks${path}`, { method, headers: data ? { 'Content-Type': 'application/json' } : undefined, body: data ? JSON.stringify(data) : undefined }); const value = await response.json() as APIResponse; if (!response.ok)
@@ -37,6 +45,12 @@ export function useCloud(getDocument: () => PaperDOMDocument, accept: (d: PaperD
         throw new Error('Finish the current edit before opening a document.'); connect({ ...snapshot, document: parsed.document }); latest.current.accept(parsed.document); }, [connect]);
     const save = async () => { const snapshot = await api('', 'POST', { document: latest.current.getDocument() }); connect(snapshot); };
     const disconnect = () => { generation.current++; base.current = null; setSession(null); blocked.current = false; setConflicts([]); setStatus('Local document'); const url = new URL(location.href); url.searchParams.delete('deck'); history.replaceState(null, '', url); };
+    const updateCursor = useCallback((pageId: string, x: number, y: number) => {
+        const snapshot = base.current;
+        if (!snapshot || latest.current.isBusy())
+            return;
+        void fetch(`/api/decks/${encodeURIComponent(snapshot.id)}/cursor`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ pageId, x, y }) }).catch(() => {});
+    }, []);
     useEffect(() => { const id = new URL(location.href).searchParams.get('deck'); const timer = setTimeout(() => { if (id)
         void open(id).catch(e => setStatus(e.message)); }, 0); return () => clearTimeout(timer); }, [open]);
     useEffect(() => {
@@ -106,7 +120,7 @@ export function useCloud(getDocument: () => PaperDOMDocument, accept: (d: PaperD
         const timer = setInterval(() => void tick(), 2000);
         return () => { active = false; clearInterval(timer); };
     }, [session]);
-    return { session, status, peers, conflicts, open, save, disconnect, reload: () => session ? open(session.id) : Promise.resolve() };
+    return { session, status, peers, conflicts, open, save, disconnect, updateCursor, reload: () => session ? open(session.id) : Promise.resolve() };
 }
 export function CloudPanel({ cloud, onClose }: {
     cloud: ReturnType<typeof useCloud>;
@@ -118,7 +132,11 @@ export function CloudPanel({ cloud, onClose }: {
     }[]>([]), [userId, setUserId] = useState(''), [members, setMembers] = useState<{
         user_id: string;
         role: string;
-    }[]>([]), [collaborator, setCollaborator] = useState(''), [role, setRole] = useState('editor'), [error, setError] = useState('');
+    }[]>([]), [collaborator, setCollaborator] = useState(''), [role, setRole] = useState('editor'), [error, setError] = useState(''), [versions, setVersions] = useState<{
+        version: number;
+        size: number;
+        key: string;
+    }[]>([]);
     const run = async (fn: () => Promise<unknown>) => { try {
         setError('');
         await fn();
@@ -136,5 +154,9 @@ export function CloudPanel({ cloud, onClose }: {
         return; let active = true; void api(`/${cloud.session.id}/members`).then(data => { if (active)
         setMembers(data.members); }).catch(e => { if (active)
         setError(e.message); }); return () => { active = false; }; }, [cloud.session]);
-    return <div className="json-backdrop" role="dialog" aria-modal="true" aria-label="Shared documents" onKeyDown={e => e.stopPropagation()}><section className="rich-text-panel"><header><h2>Shared documents</h2><button onClick={onClose}>Close</button></header><p role="status">{cloud.status}</p>{error && <p role="alert">{error}</p>}<button onClick={() => run(async () => { await cloud.save(); await refresh(); })}>Save current deck as shared copy</button>{cloud.session && <><button onClick={() => run(() => navigator.clipboard.writeText(location.href))}>Copy document link</button><button onClick={cloud.disconnect}>Work on a local copy</button><p>Connected: {cloud.peers.map(p => p.name).join(', ') || 'You'}</p></>}{cloud.conflicts.length > 0 && <div role="alert"><p>These fields changed in both copies:</p><ul>{cloud.conflicts.map(c => <li key={c}>{c}</li>)}</ul><p>Save your current deck as a shared copy to preserve your edits, or load the latest shared version.</p><button onClick={() => run(cloud.reload)}>Discard local edits and load shared version</button></div>}<h3>Your decks</h3>{decks.map(d => <button key={d.id} onClick={() => run(async () => { await cloud.open(d.id); })}>{d.title}</button>)}<label>Your collaborator ID<input aria-label="Your collaborator ID" readOnly value={userId}/></label><p>Collaborators need access to this Site first. Ask them to copy their collaborator ID from this panel, then grant document access below.</p>{cloud.session?.role === 'owner' && <><label>Collaborator ID<input aria-label="Collaborator ID" value={collaborator} onChange={e => setCollaborator(e.target.value)}/></label><select aria-label="Collaborator role" value={role} onChange={e => setRole(e.target.value)}><option value="editor">Editor</option><option value="viewer">Viewer</option></select><button disabled={!collaborator.trim()} onClick={() => run(async () => { await api(`/${cloud.session!.id}/members`, 'PUT', { userId: collaborator.trim(), role }); setCollaborator(''); setMembers((await api(`/${cloud.session!.id}/members`)).members); })}>Grant access</button>{members.map(m => <p key={m.user_id}>{m.user_id} · {m.role} <button onClick={() => run(async () => { await api(`/${cloud.session!.id}/members`, 'DELETE', { userId: m.user_id }); setMembers(members.filter(n => n.user_id !== m.user_id)); })}>Revoke access</button></p>)}</>}</section></div>;
+    useEffect(() => { if (!cloud.session)
+        return; let active = true; void api(`/${cloud.session.id}/revisions`).then(data => { if (active)
+        setVersions(data.versions ?? []); }).catch(() => { if (active)
+        setVersions([]); }); return () => { active = false; }; }, [cloud.session]);
+    return <div className="json-backdrop" role="dialog" aria-modal="true" aria-label="Shared documents" onKeyDown={e => e.stopPropagation()}><section className="rich-text-panel"><header><h2>Shared documents</h2><button onClick={onClose}>Close</button></header><p role="status">{cloud.status}</p>{error && <p role="alert">{error}</p>}<button onClick={() => run(async () => { await cloud.save(); await refresh(); })}>Save current deck as shared copy</button>{cloud.session && <><button onClick={() => run(() => navigator.clipboard.writeText(location.href))}>Copy document link</button><button onClick={cloud.disconnect}>Work on a local copy</button><p>Connected: {cloud.peers.map(p => p.name).join(', ') || 'You'}</p></>}{cloud.conflicts.length > 0 && <div role="alert"><p>These fields changed in both copies:</p><ul>{cloud.conflicts.map(c => <li key={c}>{c}</li>)}</ul><p>Save your current deck as a shared copy to preserve your edits, or load the latest shared version.</p><button onClick={() => run(cloud.reload)}>Discard local edits and load shared version</button></div>}<h3>Your decks</h3>{decks.map(d => <button key={d.id} onClick={() => run(async () => { await cloud.open(d.id); })}>{d.title}</button>)}<label>Your collaborator ID<input aria-label="Your collaborator ID" readOnly value={userId}/></label><p>Collaborators need access to this Site first. Ask them to copy their collaborator ID from this panel, then grant document access below.</p>{cloud.session?.role === 'owner' && <><label>Collaborator ID<input aria-label="Collaborator ID" value={collaborator} onChange={e => setCollaborator(e.target.value)}/></label><select aria-label="Collaborator role" value={role} onChange={e => setRole(e.target.value)}><option value="editor">Editor</option><option value="viewer">Viewer</option></select><button disabled={!collaborator.trim()} onClick={() => run(async () => { await api(`/${cloud.session!.id}/members`, 'PUT', { userId: collaborator.trim(), role }); setCollaborator(''); setMembers((await api(`/${cloud.session!.id}/members`)).members); })}>Grant access</button>{members.map(m => <p key={m.user_id}>{m.user_id} · {m.role} <button onClick={() => run(async () => { await api(`/${cloud.session!.id}/members`, 'DELETE', { userId: m.user_id }); setMembers(members.filter(n => n.user_id !== m.user_id)); })}>Revoke access</button></p>)}</>}{cloud.session && versions.length > 0 && <><h3>Revision history</h3><p>Every saved revision is retained for the last 20 saves. Restore any of them as a new revision.</p><div className="revision-list">{versions.slice(0, 20).map(v => <p key={v.key}><span>Revision {v.version}</span><span className="revision-size">{Math.max(1, Math.round(v.size / 1024))} KB</span><button onClick={() => run(async () => { await api(`/${cloud.session!.id}/restore`, 'POST', { version: v.version }); await cloud.reload(); })}>Restore</button></p>)}</div></>}</section></div>;
 }

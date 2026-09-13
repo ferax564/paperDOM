@@ -2,7 +2,7 @@ import { readPowerPointTiming } from './pptx-timing.ts';
 import { retainPowerPointSource } from './pptx-source.ts';
 import JSZip from 'jszip';
 import { baseStyle } from './component-library.ts';
-import { parsePaperDOMDocument, type CanvasElement, type CanvasPage, type PaperDOMDocument } from './document-model.ts';
+import { parsePaperDOMDocument, type CanvasElement, type CanvasPage, type PaperDOMDocument, type Paragraph } from './document-model.ts';
 import { safeLink, type TextRun } from './advanced-model.ts';
 import { SHAPE_GEOMETRIES, type ShapeGeometry } from './geometry-shapes.ts';
 import { randomId } from './ids.ts';
@@ -119,7 +119,8 @@ export async function importPowerPoint(buffer: ArrayBuffer, fileName = 'Presenta
                     warnings.add('Gradients and shape effects are approximated.');
                 const body = children(n, 'txBody')[0] ?? null;
                 if (body) {
-                    const runs: TextRun[] = [];
+                    const runs: TextRun[] = [], paragraphs: Paragraph[] = [];
+                    let structured = true;
                     const paras = children(body, 'p');
                     for (const [pi, p] of paras.entries()) {
                         const ppr = children(p, 'pPr')[0] ?? null, defaultR = children(ppr, 'defRPr')[0] ?? first(fallback, 'defRPr');
@@ -137,14 +138,14 @@ export async function importPowerPoint(buffer: ArrayBuffer, fileName = 'Presenta
                             if (Number.isFinite(tracking) && tracking)
                                 e.style.letterSpacing = tracking / 100 * 96 / 72;
                         }
-                        const bullet = first(ppr, 'buChar');
-                        if (bullet)
-                            runs.push({ text: attr(bullet, 'char') + ' ' });
-                        if (first(ppr, 'buAutoNum'))
-                            runs.push({ text: `${pi + 1}. ` });
+                        const bullet = first(ppr, 'buChar'), autoNum = first(ppr, 'buAutoNum');
+                        const kind: Paragraph['kind'] = bullet ? 'bullet' : autoNum ? 'number' : 'plain';
+                        const level = Math.min(4, Math.max(0, number(ppr, 'lvl', 0)));
+                        const paraRuns: TextRun[] = [];
                         for (const r of Array.from(p.children)) {
                             if (r.localName === 'br') {
-                                runs.push({ text: '\n' });
+                                if (kind !== 'plain' || paragraphs.some(p => p.kind !== 'plain')) { paraRuns.push({ text: ' ' }); structured = false; }
+                                else paraRuns.push({ text: '\n' });
                                 continue;
                             }
                             if (!['r', 'fld'].includes(r.localName))
@@ -156,11 +157,16 @@ export async function importPowerPoint(buffer: ArrayBuffer, fileName = 'Presenta
                             if (font && !font.startsWith('+'))
                                 st.fontFamily = font;
                             const link = refs.get(rid(first(rp, 'hlinkClick')))?.path;
-                            runs.push({ text, style: st, ...(link && safeLink(link) ? { link } : {}) });
+                            paraRuns.push({ text, style: st, ...(link && safeLink(link) ? { link } : {}) });
                         }
+                        runs.push(...paraRuns);
+                        paragraphs.push({ text: paraRuns.map(r => r.text).join(''), kind, level: level || undefined });
                     }
                     e.runs = runs;
-                    e.content = { text: runs.map(r => r.text).join('') };
+                    const fullText = runs.map(r => r.text).join('');
+                    e.content = structured && paragraphs.some(p => p.kind !== 'plain')
+                        ? { text: fullText, paragraphs }
+                        : { text: fullText };
                     e.name = e.content.text?.trim().slice(0, 40) || name;
                     if (!e.geometry && e.style.fill === 'transparent' && e.style.stroke === 'transparent')
                         e.type = 'text';
@@ -226,16 +232,23 @@ export async function importPowerPoint(buffer: ArrayBuffer, fileName = 'Presenta
                         const ref = refs.get(rid(chart));
                         if (!ref || ref.external)
                             continue;
-                        const cd = await read(ref.path), series = all(cd, 'ser');
-                        if (series.length !== 1)
-                            warnings.add('Only the first chart series is imported.');
-                        const ser = series[0], labels = all(first(ser, 'cat'), 'pt').map(p => first(p, 'v')?.textContent ?? ''), values = all(first(ser, 'val'), 'pt').map(p => Number(first(p, 'v')?.textContent));
-                        if (!labels.length || labels.length !== values.length || labels.length > 50 || values.some(v => !Number.isFinite(v))) {
+                        const cd = await read(ref.path), seriesNodes = all(cd, 'ser');
+                        if (seriesNodes.length > 10)
+                            warnings.add('Only the first 10 chart series are imported.');
+                        const imported = seriesNodes.slice(0, 10);
+                        const labels = all(first(imported[0], 'cat'), 'pt').map(p => first(p, 'v')?.textContent ?? '');
+                        const series = imported.map((ser, si) => ({
+                            name: all(first(ser, 'tx'), 'v').map(v => v.textContent).join('') || `Series ${si + 1}`,
+                            values: all(first(ser, 'val'), 'pt').map(p => Number(first(p, 'v')?.textContent)),
+                            color: paint(first(ser, 'spPr'), ''),
+                        }));
+                        if (!labels.length || series.some(s => s.values.length !== labels.length || s.values.some(v => !Number.isFinite(v))) || labels.length > 50) {
                             warnings.add('An unsupported chart was omitted.');
                             continue;
                         }
+                        const colors = series.map(s => s.color).filter(c => /^#[0-9a-f]{6}$/i.test(c));
                         e.type = 'chart';
-                        e.chart = { kind: first(cd, 'lineChart') ? 'line' : 'bar', title: all(first(cd, 'title'), 't').map(t => t.textContent).join('') || name, labels, values };
+                        e.chart = { kind: first(cd, 'lineChart') ? 'line' : 'bar', title: all(first(cd, 'title'), 't').map(t => t.textContent).join('') || name, labels, values: series[0].values, ...(series.length > 1 ? { series: series.map(({ name, values }) => ({ name, values })) } : {}), ...(colors.length ? { colors } : {}) };
                         if (!first(cd, 'lineChart') && !first(cd, 'barChart'))
                             warnings.add('An unsupported chart type was approximated as a bar chart.');
                     }

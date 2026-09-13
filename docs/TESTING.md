@@ -21,11 +21,11 @@ npm run test:browser
 | --- | --- |
 | Smart-guide movement and resize | Page/object snapping, multi-selection bounds, disabled guides, hidden candidates, page clamping, minimum size |
 | Text boxes | Click and reverse-drag geometry, bounds, minimum dimensions |
-| Plain-text lists | Bullets, numbering, mixed input, blank lines, indentation, CRLF normalization |
-| Document model | Legacy normalization, nested defaults, IDs, endpoints, style ranges, unsafe image schemes, storage keys |
+| Plain-text lists | Bullets, numbering, mixed input, blank lines, indentation, CRLF normalization, structured paragraph resync |
+| Document model | Legacy normalization, nested defaults, IDs, endpoints, style ranges, gradients/shadows/fit/autoFit, unsafe image schemes, storage keys, plugin manifests, comments, migrateDocument versions |
 | Agent API core | Revision conflicts, nested patching, deletion cleanup, atomic page operations, deterministic preview/diff including element order, strict operation/actor discriminators, draft conflicts, isolated queries/proposals, sequential calls, rotated bounds, alt-text warnings |
-| Agent operations | `patchDocument`, `duplicatePage`, `duplicateElements` (id/connector/group remapping), `moveElements` (endpoint freezing, animation cues), capabilities reporting |
-| MCP server | Handshake, tool listing, blank-start on missing file, revision conflicts, serialized mutations, persistence, PPTX/HTML export tools |
+| Agent operations | `patchDocument`, `duplicatePage`, `duplicateElements` (id/connector/group remapping), `moveElements` (endpoint freezing, animation cues), `alignElements`/`distributeElements`/`reorderElements`/`styleAll`/`replaceTextAll`/`zOrderElements`, theme-token remapping, themed element defaults, structured paragraph sync, chart series validation, capabilities reporting |
+| MCP server | Handshake, tool listing, blank-start on missing file, revision conflicts, serialized mutations, persistence, PPTX/HTML export tools, starter-library component/template insertion, theme presets |
 | CLI | Validation/outline/preview/apply, `export-pptx`/`export-html`, stale revisions, exclusive file creation and input preservation |
 | Browser workflow | Proposal preview/accept/reject, Escape/focus, invalid/stale proposals, back-to-back undo, notes review, page add/duplicate/reorder/delete and reload persistence, retained API handles across page changes/deletion and active text editing |
 | Shape geometry | Gallery insertion, SVG rendering, inspector/bar geometry switching, `prstGeom` PPTX export, import round-trip preserving `geometry` |
@@ -33,10 +33,12 @@ npm run test:browser
 | Keyboard parity | F5/Shift+F5 presentation entry, Ctrl+G/Ctrl+Shift+G grouping, Ctrl+]/[ z-order steps |
 | PPTX fidelity | `lnSpc`→lineHeight, `spc`→letterSpacing, `charSpacing`/`lineSpacingMultiple` export, merged-cell expansion with warning, unknown `prstGeom` warning |
 | Authentication helper | Local return paths and open-redirect rejection |
+| Published JSON Schema | Draft 2020-12 schema generation, fixture/example structural agreement |
+| Native render gate | Keynote pipeline executed on real regenerated exports with integrity manifest; findings recorded |
 | Production artifact | Worker import, HTML response, preview metadata, PaperDOM branding, core editor controls |
 | Production dependencies | CI audit at high severity or above |
 
-Current suite sizes: 164 Node tests and 66 Playwright browser tests. PPTX output has additionally been opened and PDF-rendered in Keynote, and Keynote-produced packages re-import cleanly; native Microsoft PowerPoint remains unverified.
+Current suite sizes: 176 Node tests and 66 Playwright browser tests. PPTX output has additionally been opened and PDF-rendered in Keynote, and the scripts/render-keynote.mjs pipeline executed real macOS renders of regenerated exports on 2026-09-13 (see NATIVE-RENDERING.md); native Microsoft PowerPoint remains unverified.
 
 ## Manual agent-preview checklist
 

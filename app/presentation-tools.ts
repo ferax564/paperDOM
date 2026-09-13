@@ -2,17 +2,23 @@ import type { CanvasElement, CanvasPage, Frame, PaperDOMDocument } from './docum
 import {effectiveLibrary} from './starter-library.ts';
 import { baseStyle } from './component-library.ts';
 export type TableData = { rows: string[][]; header: boolean };
-export type ChartData = { kind: 'bar'|'line'; labels: string[]; values: number[]; title: string };
+export type ChartSeries = { name: string; values: number[] };
+export type ChartData = { kind: 'bar'|'line'; labels: string[]; values: number[]; title: string; series?: ChartSeries[]; colors?: string[]; grid?: boolean };
 export const clamp = (n:number,min:number,max:number) => Math.max(min,Math.min(max,n));
 export function parseTable(text:string):string[][] {
   const rows=text.replace(/\r/g,'').split('\n').map(row=>row.split('\t'));
   if(!rows.length||rows.length>50||Math.max(...rows.map(r=>r.length))>20)throw new Error('Use at most 50 rows and 20 columns.');
   const width=Math.max(...rows.map(r=>r.length));return rows.map(row=>Array.from({length:width},(_,i)=>row[i]??''));
 }
-export function parseChart(text:string):Pick<ChartData,'labels'|'values'> {
+export function parseChart(text:string):Pick<ChartData,'labels'|'values'|'series'> {
   const rows=text.trim().split('\n').map(row=>row.split('\t'));
-  if(!rows.length||rows.length>50||rows.some(row=>row.length!==2||!row[0].trim()||!row[1].trim()||!Number.isFinite(Number(row[1]))))throw new Error('Use one label and one finite number per line, separated by a tab (up to 50 lines).');
-  return {labels:rows.map(r=>r[0]),values:rows.map(r=>Number(r[1]))};
+  if(!rows.length||rows.length>50)throw new Error('Use at most 50 lines.');
+  if(rows.some(row=>row.length<2||!row[0].trim()||row.slice(1).some(cell=>!cell.trim()||!Number.isFinite(Number(cell)))))throw new Error('Use one label and one or more finite numbers per line, separated by tabs.');
+  const labels=rows.map(r=>r[0]);
+  if(rows[0].length===2)return {labels,values:rows.map(r=>Number(r[1]))};
+  if(rows.some(row=>row.length!==rows[0].length))throw new Error('Use the same number of series in every line.');
+  const series=Array.from({length:rows[0].length-1},(_,s)=>({name:`Series ${s+1}`,values:rows.map(r=>Number(r[s+1]))}));
+  return {labels,values:series[0].values,series};
 }
 export function makeDataElement(type:'table'|'chart',id:string):CanvasElement {
   return {id,type,name:type==='table'?'Table':'Chart',frame:{x:100,y:180,w:640,h:320,rotation:0},z:10,style:{...baseStyle,fill:'#ffffff',stroke:'#cbd5e1',strokeWidth:1,padding:12,fontSize:20},...(type==='table'?{table:{header:true,rows:[['Metric','Current','Target'],['Revenue','120','150'],['Users','800','1000']]}}:{chart:{kind:'bar' as const,labels:['Q1','Q2','Q3','Q4'],values:[24,36,31,48],title:'Quarterly progress'}})};

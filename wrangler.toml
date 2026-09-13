@@ -1,0 +1,27 @@
+# Standard Cloudflare Workers deployment for PaperDOM.
+# The hosted ChatGPT Sites pipeline uses .openai/hosting.json instead; this file
+# enables `wrangler deploy` on any Cloudflare account.
+#
+# Required setup:
+#   1. wrangler d1 create paperdom        -> paste database_id below
+#   2. wrangler r2 bucket create paperdom -> bucket binding below
+#   3. wrangler d1 execute paperdom --remote --file=drizzle/0000_white_devos.sql
+#      wrangler d1 execute paperdom --remote --file=drizzle/0001_cursor_versions.sql
+#   4. Optional shared-token auth: wrangler secret put PAPERDOM_TOKEN
+#      Clients then send `Authorization: Bearer <token>` to /api/decks.
+name = "paperdom"
+main = "worker/index.ts"
+compatibility_date = "2026-08-01"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "paperdom"
+database_id = "REPLACE_WITH_D1_DATABASE_ID"
+
+[[r2_buckets]]
+binding = "BUCKET"
+bucket_name = "paperdom"
+
+[assets]
+binding = "ASSETS"
+directory = "./dist/client"

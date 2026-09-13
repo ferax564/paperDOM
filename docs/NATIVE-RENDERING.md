@@ -2,6 +2,10 @@
 
 PaperDOM includes an **interactive Windows rendering workflow** using Microsoft PowerPoint itself. The hosted Cloudflare Worker cannot run Office. The workflow is implemented, but no real PowerPoint output has been produced or visually verified in this environment.
 
+## macOS evidence pipeline (executed)
+
+`scripts/render-keynote.mjs deck.pptx outDir/` runs the same gate on macOS with Keynote, which is available on this machine: it opens the deck, exports every slide as PNG plus a PDF, closes without saving, and writes `render-manifest.json` with SHA-256 hashes for each slide image. A real run on 2026-09-13 rendered a regenerated export: text, tables, shadowed gradient cards and preset geometry all render natively; gradients approximate to solid colors, and **Keynote drops regenerated chart parts entirely** (single- and multi-series). Those findings live in the [compatibility matrix](POWERPOINT-COMPATIBILITY.md). Keynote is not PowerPoint; the Windows gate below remains open.
+
 ## Render a concrete export
 
 1. Export the deck as PPTX. Keep that exact file; regenerated ZIP files can have different hashes.

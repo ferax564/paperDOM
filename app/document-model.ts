@@ -1,14 +1,20 @@
 import { MAX_PPTX_SOURCE_BYTES, type PowerPointSource } from './pptx-source.ts';
 import {safeLink,safeMedia,replaceRunText,type TextRun,type AnimationCue,type MediaData} from './advanced-model.ts';
-import { copyElements, endpointPoint } from './presentation-tools.ts';
+import { copyElements, endpointPoint, translateElement, type TableData, type ChartData } from './presentation-tools.ts';
+import { resyncParagraphs } from './text-formatting.ts';
 import { SHAPE_GEOMETRIES, type ShapeGeometry } from './geometry-shapes.ts';
 import { randomId } from './ids.ts';
-import type { TableData, ChartData } from './presentation-tools.ts';
 import { validateLibrary, validateTheme, validateInstance, defaultTheme, type ComponentLibrary, type ComponentInstance, type Theme } from './component-library.ts';
 export type Kind = "text" | "shape" | "ellipse" | "connector" | "line" | "image" | "plugin" | "component" | "table" | "chart" | "audio" | "video";
 export type Anchor = "top" | "right" | "bottom" | "left";
 export type Endpoint = { elementId?: string; anchor?: Anchor; x?: number; y?: number };
 export type Frame = { x: number; y: number; w: number; h: number; rotation: number };
+
+export type FillGradient = { from: string; to: string; angle: number };
+export type DropShadow = { color: string; blur: number; offsetX: number; offsetY: number };
+export type FocalPoint = { x: number; y: number };
+/** Structured paragraphs replace literal "• " text markers. content.text stays canonical. */
+export type Paragraph = { text: string; kind?: "bullet" | "number" | "plain"; level?: number };
 
 export type ElementStyle = {
   fill: string;
@@ -29,6 +35,11 @@ export type ElementStyle = {
   verticalAlign: "top" | "middle" | "bottom";
   padding: number;
   lineStyle?: "solid" | "dashed";
+  fillGradient?: FillGradient;
+  shadow?: DropShadow;
+  fit?: "cover" | "contain";
+  focal?: FocalPoint;
+  autoFit?: "none" | "grow" | "shrink";
 };
 
 export type ElementContent = {
@@ -39,6 +50,7 @@ export type ElementContent = {
   value?: string;
   trend?: string;
   accent?: string;
+  paragraphs?: Paragraph[];
 };
 
 export type CanvasElement = {
@@ -63,6 +75,15 @@ export type CanvasElement = {
   media?: MediaData;
 };
 
+export type SlideComment = {
+  id: string;
+  author: string;
+  text: string;
+  elementId?: string;
+  createdAt: string;
+  resolved?: boolean;
+};
+
 export type CanvasPage = {
   id: string;
   name: string;
@@ -73,6 +94,7 @@ export type CanvasPage = {
   masterId?: string;
   inheritBackground?: boolean;
   animations?: AnimationCue[];
+  comments?: SlideComment[];
   size: { width: number; height: number };
   background: { color: string };
   elements: CanvasElement[];
@@ -93,6 +115,8 @@ export type PaperDOMDocument = {
   metadata: { createdAt: string; updatedAt: string };
 };
 
+export type AlignMode = "left" | "centerX" | "right" | "top" | "centerY" | "bottom";
+
 export type AgentOperation =
   | { op: "patchDocument"; patch: { title?: string } }
   | {op:"setMasters";masters:CanvasPage[]}
@@ -100,7 +124,7 @@ export type AgentOperation =
   | { op: "setTheme"; theme: Theme }
   | { op: "createPage"; page: CanvasPage; index?: number }
   | { op: "duplicatePage"; pageId: string; id?: string; name?: string; index?: number }
-  | { op: "patchPage"; pageId: string; patch: Partial<Pick<CanvasPage,"name"|"notes"|"background"|"size"|"hidden"|"transition"|"advanceSeconds"|"masterId"|"animations"|"inheritBackground">> }
+  | { op: "patchPage"; pageId: string; patch: Partial<Pick<CanvasPage,"name"|"notes"|"background"|"size"|"hidden"|"transition"|"advanceSeconds"|"masterId"|"animations"|"inheritBackground"|"comments">> }
   | { op: "deletePage"; pageId: string }
   | { op: "reorderPages"; pageIds: string[] }
   | { op: "createElement"; pageId?: string; element: CanvasElement }
@@ -108,7 +132,13 @@ export type AgentOperation =
   | { op: "moveElements"; pageId?: string; toPageId: string; ids: string[] }
   | { op: "patchElement"; pageId?: string; elementId: string; patch: CanvasElementPatch }
   | { op: "deleteElements"; pageId?: string; ids: string[] }
-  | { op: "replaceText"; pageId?: string; elementId: string; text: string };
+  | { op: "replaceText"; pageId?: string; elementId: string; text: string }
+  | { op: "alignElements"; pageId?: string; ids?: string[]; mode: AlignMode; relative?: "selection" | "page" }
+  | { op: "distributeElements"; pageId?: string; ids: string[]; axis: "x" | "y" }
+  | { op: "reorderElements"; pageId?: string; order: string[] }
+  | { op: "styleAll"; pageId?: string; scope?: "page" | "document"; match?: { type?: Kind; groupId?: string; hidden?: boolean; locked?: boolean }; patch: Pick<CanvasElementPatch, "style" | "hidden" | "locked" | "name"> }
+  | { op: "replaceTextAll"; find: string; replace?: string; caseSensitive?: boolean; pageId?: string; scope?: "page" | "document"; includeTables?: boolean; includeComponents?: boolean }
+  | { op: "zOrderElements"; pageId?: string; ids: string[]; to: "front" | "back" | "forward" | "backward" };
 
 export type AgentTransactionPayload = {
   expectedRevision?: number;
@@ -179,6 +209,51 @@ const isFiniteNumber = (value: unknown): value is number =>
   typeof value === "number" && Number.isFinite(value);
 const isNonEmptyString = (value: unknown): value is string =>
   typeof value === "string" && value.trim().length > 0;
+const safeIdentifier = (value: string): boolean =>
+  /^[a-zA-Z][a-zA-Z0-9_.-]{0,127}$/.test(value) && !["__proto__", "constructor", "prototype"].includes(value);
+
+/** Elements created without a style inherit the document theme, not fixed defaults. */
+function themeElementStyle(document: PaperDOMDocument): ElementStyle {
+  const theme = document.theme;
+  return theme ? { ...DEFAULT_STYLE, color: theme.ink, fontFamily: theme.fontFamily } : { ...DEFAULT_STYLE };
+}
+
+/** Map old-theme token values onto the new theme across pages, masters, runs, and backgrounds. */
+export function applyThemeTokens(document: PaperDOMDocument, from: Theme, to: Theme): PaperDOMDocument {
+  if (from === to) return document;
+  const pairs = (Object.keys(from) as (keyof Theme)[]).map((token) => [from[token], to[token]] as const);
+  const map = (value: string): string => {
+    for (const [source, target] of pairs) if (source !== "" && value === source) return target;
+    return value;
+  };
+  const mapStyle = (style: ElementStyle): ElementStyle => ({
+    ...style,
+    fill: map(style.fill),
+    stroke: map(style.stroke),
+    color: map(style.color),
+    fontFamily: map(style.fontFamily),
+    fillGradient: style.fillGradient ? { ...style.fillGradient, from: map(style.fillGradient.from), to: map(style.fillGradient.to) } : undefined,
+    shadow: style.shadow ? { ...style.shadow, color: map(style.shadow.color) } : undefined,
+  });
+  const mapRuns = (runs: TextRun[]): TextRun[] => runs.map((run) => ({
+    ...run,
+    style: run.style ? {
+      ...run.style,
+      ...(run.style.color === undefined ? {} : { color: map(run.style.color) }),
+      ...(run.style.fontFamily === undefined ? {} : { fontFamily: map(run.style.fontFamily) }),
+    } : run.style,
+  }));
+  const mapPage = (page: CanvasPage): CanvasPage => ({
+    ...page,
+    background: { ...page.background, color: map(page.background.color) },
+    elements: page.elements.map((element) => ({
+      ...element,
+      style: mapStyle(element.style),
+      runs: element.runs ? mapRuns(element.runs) : element.runs,
+    })),
+  });
+  return { ...document, pages: document.pages.map(mapPage), masters: document.masters?.map(mapPage) };
+}
 
 function normalizeCandidate(value: unknown): unknown {
   if (!isRecord(value)) return value;
@@ -250,6 +325,13 @@ function validateElement(element: unknown, elementIds: Set<string>, path: string
   if(element.type==='chart') {
     const c=element.chart;
     if(!isRecord(c)||(c.kind!=='bar'&&c.kind!=='line')||typeof c.title!=='string'||!Array.isArray(c.labels)||!Array.isArray(c.values)||!c.labels.length||c.labels.length>50||c.values.length!==c.labels.length||c.labels.some(v=>typeof v!=='string')||c.values.some(v=>!isFiniteNumber(v)))return `${path}.chart requires matching labels and finite numeric values`;
+    if(c.series!==undefined){
+      if(!Array.isArray(c.series)||c.series.length>10)return `${path}.chart.series must contain at most 10 series`;
+      for(const s of c.series){
+        if(!isRecord(s)||typeof s.name!=='string'||!Array.isArray(s.values)||s.values.length!==c.labels.length||s.values.some(v=>!isFiniteNumber(v)))return `${path}.chart.series requires a name and one finite value per label`;
+      }
+    }
+    if(c.colors!==undefined&&(!Array.isArray(c.colors)||c.colors.length>10||c.colors.some(v=>typeof v!=='string'||/\b(?:url|image-set)\s*\(/i.test(v))))return `${path}.chart.colors must be color strings`;
   }
   if(element.runs!==undefined){
     if(!Array.isArray(element.runs)||element.runs.length>10000)return `${path}.runs must be an array of at most 10000 runs`;
@@ -305,12 +387,52 @@ function validateElement(element: unknown, elementIds: Set<string>, path: string
   if (style.lineStyle !== undefined && !LINE_STYLES.has(style.lineStyle as string)) {
     return `${path}.style.lineStyle is invalid`;
   }
+  const gradient = style.fillGradient;
+  if (gradient !== undefined) {
+    if (!isRecord(gradient) || typeof gradient.from !== "string" || typeof gradient.to !== "string" ||
+      /\b(?:url|image-set)\s*\(/i.test(gradient.from) || /\b(?:url|image-set)\s*\(/i.test(gradient.to) ||
+      !isFiniteNumber(gradient.angle)) return `${path}.style.fillGradient requires from/to colors and a finite angle`;
+  }
+  const shadow = style.shadow;
+  if (shadow !== undefined) {
+    if (!isRecord(shadow) || typeof shadow.color !== "string" || /\b(?:url|image-set)\s*\(/i.test(shadow.color) ||
+      !isFiniteNumber(shadow.blur) || shadow.blur < 0 || !isFiniteNumber(shadow.offsetX) || !isFiniteNumber(shadow.offsetY)) {
+      return `${path}.style.shadow requires a color, non-negative blur, and finite offsets`;
+    }
+  }
+  if (style.fit !== undefined && style.fit !== "cover" && style.fit !== "contain") return `${path}.style.fit is invalid`;
+  if (style.focal !== undefined && (!isRecord(style.focal) || !isFiniteNumber(style.focal.x) || !isFiniteNumber(style.focal.y) ||
+    style.focal.x < 0 || style.focal.x > 1 || style.focal.y < 0 || style.focal.y > 1)) {
+    return `${path}.style.focal must contain x and y between 0 and 1`;
+  }
+  if (style.autoFit !== undefined && style.autoFit !== "none" && style.autoFit !== "grow" && style.autoFit !== "shrink") {
+    return `${path}.style.autoFit is invalid`;
+  }
 
   if (element.content !== undefined) {
     if (!isRecord(element.content)) return `${path}.content must be an object`;
     for (const key of CONTENT_KEYS) {
       if (element.content[key] !== undefined && typeof element.content[key] !== "string") {
         return `${path}.content.${key} must be a string`;
+      }
+    }
+    if (element.content.paragraphs !== undefined) {
+      const paragraphs = element.content.paragraphs;
+      if (!Array.isArray(paragraphs) || paragraphs.length > 200) return `${path}.content.paragraphs must contain at most 200 paragraphs`;
+      for (const raw of paragraphs) {
+        const paragraph = raw as Paragraph;
+        if (!isRecord(raw) || typeof paragraph.text !== "string" || paragraph.text.includes("\n")) {
+          return `${path}.content.paragraphs requires one single-line text per paragraph`;
+        }
+        if (paragraph.kind !== undefined && !["bullet", "number", "plain"].includes(paragraph.kind)) {
+          return `${path}.content.paragraphs.kind is invalid`;
+        }
+        if (paragraph.level !== undefined && (!Number.isInteger(paragraph.level) || paragraph.level < 0 || paragraph.level > 4)) {
+          return `${path}.content.paragraphs.level must be an integer from 0 to 4`;
+        }
+      }
+      if (paragraphs.map((p) => (p as Paragraph).text).join("\n") !== (element.content.text ?? "")) {
+        return `${path}.content.paragraphs must match content.text`;
       }
     }
     const source = element.content.src;
@@ -351,6 +473,17 @@ function validationError(value: unknown): string | null {
     }
     if (pluginIds.has(plugin.id)) return `plugins[${index}].id is duplicated`;
     pluginIds.add(plugin.id);
+    // Declarative manifest: optional name/description plus typed field labels. No executable plugin surface.
+    for (const key of ["name", "description"]) if (plugin[key] !== undefined && typeof plugin[key] !== "string") return `plugins[${index}].${key} must be a string`;
+    if (plugin.fields !== undefined) {
+      if (!Array.isArray(plugin.fields) || plugin.fields.length > 20) return `plugins[${index}].fields must contain at most 20 fields`;
+      for (const field of plugin.fields) {
+        if (!isRecord(field) || !isNonEmptyString(field.key) || !safeIdentifier(field.key) || typeof field.label !== "string") {
+          return `plugins[${index}].fields contains an invalid field`;
+        }
+        if (field.type !== undefined && field.type !== "text" && field.type !== "color") return `plugins[${index}].fields.type is invalid`;
+      }
+    }
   }
   if (!Array.isArray(value.pages) || value.pages.length === 0) return "pages must be a non-empty array";
 
@@ -372,6 +505,15 @@ function validationError(value: unknown): string | null {
     if (page.transition !== undefined && !['none','fade','slide'].includes(page.transition as string)) return `${path}.transition is invalid`;
     if (page.advanceSeconds !== undefined && (!isFiniteNumber(page.advanceSeconds)||page.advanceSeconds<0||page.advanceSeconds>3600)) return `${path}.advanceSeconds must be 0–3600`;
     if(page.inheritBackground!==undefined&&typeof page.inheritBackground!=="boolean")return `${path}.inheritBackground must be boolean`;
+    if(page.comments!==undefined){
+      if(!Array.isArray(page.comments)||page.comments.length>200)return `${path}.comments must contain at most 200 comments`;
+      const commentIds=new Set<string>();
+      for(const comment of page.comments){
+        if(!isRecord(comment)||!isNonEmptyString(comment.id)||commentIds.has(comment.id)||typeof comment.author!=="string"||typeof comment.text!=="string"||(comment.resolved!==undefined&&typeof comment.resolved!=="boolean")||!isNonEmptyString(comment.createdAt))return `${path}.comments contains an invalid comment`;
+        commentIds.add(comment.id);
+        if(comment.elementId!==undefined&&(!isNonEmptyString(comment.elementId)||!Array.isArray(page.elements)||!page.elements.some(e=>isRecord(e)&&e.id===comment.elementId)))return `${path}.comments.elementId must reference an element on the page`;
+      }
+    }
     if(page.masterId!==undefined&&(!isNonEmptyString(page.masterId)||!Array.isArray(value.masters)||!value.masters.some(m=>isRecord(m)&&m.id===page.masterId)))return `${path}.masterId is invalid`;
     if(page.animations!==undefined){if(!Array.isArray(page.animations)||page.animations.length>200)return `${path}.animations is invalid`;const ids=new Set();for(const c of page.animations){if(!isRecord(c)||!isNonEmptyString(c.id)||ids.has(c.id)||!Array.isArray(page.elements)||!page.elements.some(e=>isRecord(e)&&e.id===c.elementId)||!['appear','fade-in','fade-out','fly-in','zoom','spin','pulse','move'].includes(String(c.effect))||!['click','with-previous','after-previous'].includes(String(c.trigger))||!isFiniteNumber(c.duration)||c.duration<0||c.duration>60||!isFiniteNumber(c.delay)||c.delay<0||c.delay>3600||['dx','dy'].some(k=>c[k]!==undefined&&!isFiniteNumber(c[k])))return `${path}.animations contains an invalid cue`;ids.add(c.id);}}
     if (page.notes !== undefined && typeof page.notes !== "string") return `${path}.notes must be a string`;
@@ -406,6 +548,28 @@ export function parsePaperDOMDocument(value: unknown): DocumentParseResult {
   const error = validationError(normalized);
   if (error) return { ok: false, error };
   return { ok: true, document: normalized as PaperDOMDocument };
+}
+
+/**
+ * Versioned entry point for third-party readers. Accepts every released
+ * document version and upgrades it to the current one. New versions append a
+ * migration step here before validation learns about them.
+ */
+export const DOCUMENT_VERSIONS = ["0.1"] as const;
+export const CURRENT_DOCUMENT_VERSION = "0.1";
+export type DocumentMigrationResult =
+  | { ok: true; document: PaperDOMDocument; migratedFrom?: string }
+  | { ok: false; error: string };
+
+export function migrateDocument(value: unknown): DocumentMigrationResult {
+  if (!isRecord(value)) return { ok: false, error: "Document must be an object" };
+  const from = value.version;
+  if (from !== undefined && !(DOCUMENT_VERSIONS as readonly string[]).includes(String(from))) {
+    return { ok: false, error: `Unsupported document version: ${String(from)}. Supported versions: ${DOCUMENT_VERSIONS.join(", ")}` };
+  }
+  const result = parsePaperDOMDocument(value);
+  if (!result.ok) return { ok: false, error: result.error };
+  return { ok: true, document: result.document, ...(from !== undefined && from !== CURRENT_DOCUMENT_VERSION ? { migratedFrom: String(from) } : {}) };
 }
 
 export function isPaperDOMDocument(value: unknown): value is PaperDOMDocument {
@@ -462,7 +626,7 @@ export function applyDocumentTransaction(
   const operations = payload.operations as unknown[];
   const next: PaperDOMDocument = structuredClone(document);
   const changed = new Set<string>();
-  const supportedOperations = new Set(["patchDocument", "createElement", "patchElement", "deleteElements", "replaceText", "createPage", "duplicatePage", "patchPage", "deletePage", "reorderPages", "setLibrary", "setTheme", "setMasters", "duplicateElements", "moveElements"]);
+  const supportedOperations = new Set(["patchDocument", "createElement", "patchElement", "deleteElements", "replaceText", "createPage", "duplicatePage", "patchPage", "deletePage", "reorderPages", "setLibrary", "setTheme", "setMasters", "duplicateElements", "moveElements", "alignElements", "distributeElements", "reorderElements", "styleAll", "replaceTextAll", "zOrderElements"]);
 
   for (let index = 0; index < operations.length; index += 1) {
     const candidateOperation = operations[index];
@@ -488,7 +652,11 @@ export function applyDocumentTransaction(
     if (operation.op === "setTheme") {
       const error = validateTheme(operation.theme);
       if (error) return transactionError(document, "invalid_operation", error, index);
-      next.theme = structuredClone(operation.theme) as Theme;
+      const theme = structuredClone(operation.theme) as Theme;
+      const mapped = applyThemeTokens(next, next.theme ?? defaultTheme, theme);
+      Object.assign(next, mapped);
+      next.theme = theme;
+      for (const page of next.pages) for (const element of page.elements) changed.add(element.id);
       continue;
     }
     if (operation.op === "createPage") {
@@ -562,8 +730,8 @@ export function applyDocumentTransaction(
       continue;
     }
     if (operation.op === "patchPage") {
-      if (!isRecord(operation.patch) || Object.keys(operation.patch).some((key) => !["name", "notes", "background", "size", "hidden", "transition", "advanceSeconds", "masterId", "animations", "inheritBackground"].includes(key))) {
-        return transactionError(document, "invalid_operation", "patchPage supports name, notes, background, size, hidden, transition, advanceSeconds, masterId, animations, and inheritBackground", index);
+      if (!isRecord(operation.patch) || Object.keys(operation.patch).some((key) => !["name", "notes", "background", "size", "hidden", "transition", "advanceSeconds", "masterId", "animations", "inheritBackground", "comments"].includes(key))) {
+        return transactionError(document, "invalid_operation", "patchPage supports name, notes, background, size, hidden, transition, advanceSeconds, masterId, animations, inheritBackground, and comments", index);
       }
       Object.assign(page, structuredClone(operation.patch));
       continue;
@@ -575,6 +743,11 @@ export function applyDocumentTransaction(
       if (!isNonEmptyString(element.id)) return transactionError(document, "invalid_operation", "Created element needs an id", index);
       if (next.pages.some((candidate) => candidate.elements.some((item) => item.id === element.id))) {
         return transactionError(document, "invalid_operation", `Element id ${element.id} already exists`, index);
+      }
+      // Omitted style fields inherit the document theme rather than fixed defaults.
+      if (!isRecord(operation.element.style)) element.style = themeElementStyle(next);
+      else if (Object.keys(operation.element.style).some((key) => !Object.hasOwn(DEFAULT_STYLE, key))) {
+        return transactionError(document, "invalid_operation", `Unknown style field on ${element.id}`, index);
       }
       page.elements.push(element);
       changed.add(element.id);
@@ -651,6 +824,226 @@ export function applyDocumentTransaction(
       continue;
     }
 
+    if (operation.op === "alignElements") {
+      const mode = operation.mode;
+      if (!["left", "centerX", "right", "top", "centerY", "bottom"].includes(mode as string)) {
+        return transactionError(document, "invalid_operation", "alignElements requires mode left, centerX, right, top, centerY, or bottom", index);
+      }
+      if (operation.relative !== undefined && operation.relative !== "selection" && operation.relative !== "page") {
+        return transactionError(document, "invalid_operation", "alignElements relative must be selection or page", index);
+      }
+      const targetIds = operation.ids === undefined ? page.elements.filter((e) => !e.locked && !e.hidden).map((e) => e.id) : operation.ids;
+      if (!Array.isArray(targetIds) || !targetIds.length || targetIds.some((id) => !isNonEmptyString(id))) {
+        return transactionError(document, "invalid_operation", "alignElements requires a non-empty id array", index);
+      }
+      const targets = page.elements.filter((item) => targetIds.includes(item.id) && !item.locked && !item.hidden);
+      if (targets.length < 2) return transactionError(document, "invalid_operation", "alignElements needs at least two movable elements", index);
+      const relative = (operation.relative as string | undefined) ?? "selection";
+      const bounds = relative === "page"
+        ? { left: 0, right: page.size.width, top: 0, bottom: page.size.height }
+        : {
+          left: Math.min(...targets.map((e) => e.frame.x)),
+          right: Math.max(...targets.map((e) => e.frame.x + e.frame.w)),
+          top: Math.min(...targets.map((e) => e.frame.y)),
+          bottom: Math.max(...targets.map((e) => e.frame.y + e.frame.h)),
+        };
+      for (const element of targets) {
+        const { x, y, w, h } = element.frame;
+        const dx = mode === "left" ? bounds.left - x : mode === "centerX" ? (bounds.left + bounds.right) / 2 - (x + w / 2) : mode === "right" ? bounds.right - (x + w) : 0;
+        const dy = mode === "top" ? bounds.top - y : mode === "centerY" ? (bounds.top + bounds.bottom) / 2 - (y + h / 2) : mode === "bottom" ? bounds.bottom - (y + h) : 0;
+        if (dx || dy) page.elements[page.elements.indexOf(element)] = translateElement(element, dx, dy);
+        changed.add(element.id);
+      }
+      continue;
+    }
+
+    if (operation.op === "distributeElements") {
+      if (operation.axis !== "x" && operation.axis !== "y") {
+        return transactionError(document, "invalid_operation", "distributeElements requires axis x or y", index);
+      }
+      if (!Array.isArray(operation.ids) || operation.ids.length < 3 || operation.ids.some((id) => !isNonEmptyString(id))) {
+        return transactionError(document, "invalid_operation", "distributeElements requires at least three element ids", index);
+      }
+      const distributeIds = operation.ids as string[];
+      const ordered = page.elements.filter((item) => distributeIds.includes(item.id) && !item.locked && !item.hidden)
+        .sort((a, b) => operation.axis === "x" ? a.frame.x - b.frame.x : a.frame.y - b.frame.y);
+      if (ordered.length < 3) return transactionError(document, "invalid_operation", "distributeElements needs at least three movable elements", index);
+      const gap = operation.axis === "x"
+        ? (ordered[ordered.length - 1].frame.x + ordered[ordered.length - 1].frame.w - ordered[0].frame.x - ordered.reduce((sum, e) => sum + e.frame.w, 0)) / (ordered.length - 1)
+        : (ordered[ordered.length - 1].frame.y + ordered[ordered.length - 1].frame.h - ordered[0].frame.y - ordered.reduce((sum, e) => sum + e.frame.h, 0)) / (ordered.length - 1);
+      let cursor = operation.axis === "x" ? ordered[0].frame.x : ordered[0].frame.y;
+      const positions = new Map<string, number>();
+      for (const element of ordered) {
+        positions.set(element.id, cursor);
+        cursor += (operation.axis === "x" ? element.frame.w : element.frame.h) + gap;
+      }
+      for (const element of ordered) {
+        const position = positions.get(element.id)!;
+        const dx = operation.axis === "x" ? position - element.frame.x : 0;
+        const dy = operation.axis === "y" ? position - element.frame.y : 0;
+        if (dx || dy) page.elements[page.elements.indexOf(element)] = translateElement(element, dx, dy);
+        changed.add(element.id);
+      }
+      continue;
+    }
+
+    if (operation.op === "reorderElements") {
+      if (!Array.isArray(operation.order) || operation.order.length !== page.elements.length ||
+        new Set(operation.order).size !== operation.order.length ||
+        operation.order.some((id) => !page.elements.some((item) => item.id === id))) {
+        return transactionError(document, "invalid_operation", "order must contain each element id on the page exactly once", index);
+      }
+      page.elements = (operation.order as string[]).map((id) => page.elements.find((item) => item.id === id)!);
+      page.elements.forEach((element) => changed.add(element.id));
+      continue;
+    }
+
+    if (operation.op === "styleAll") {
+      if (!isRecord(operation.patch) || Object.keys(operation.patch).some((key) => !["style", "hidden", "locked", "name"].includes(key))) {
+        return transactionError(document, "invalid_operation", "styleAll patch supports style, hidden, locked, and name", index);
+      }
+      const patch = operation.patch as Pick<CanvasElementPatch, "style" | "hidden" | "locked" | "name">;
+      if (operation.scope !== undefined && operation.scope !== "page" && operation.scope !== "document") {
+        return transactionError(document, "invalid_operation", "styleAll scope must be page or document", index);
+      }
+      const match = (operation.match ?? {}) as Record<string, unknown>;
+      if (match.type !== undefined && !KINDS.has(match.type as Kind)) return transactionError(document, "invalid_operation", "styleAll match.type is invalid", index);
+      const pages = (operation.scope ?? "page") === "document" ? next.pages : [page];
+      for (const target of pages) {
+        for (const element of target.elements) {
+          if (match.type !== undefined && element.type !== match.type) continue;
+          if (match.groupId !== undefined && element.groupId !== match.groupId) continue;
+          if (match.hidden !== undefined && Boolean(element.hidden) !== match.hidden) continue;
+          if (match.locked !== undefined && Boolean(element.locked) !== match.locked) continue;
+          const stylePatch = patch.style;
+          target.elements[target.elements.indexOf(element)] = {
+            ...element,
+            ...(stylePatch ? { style: { ...element.style, ...structuredClone(stylePatch) } } : {}),
+            ...(patch.hidden !== undefined ? { hidden: patch.hidden } : {}),
+            ...(patch.locked !== undefined ? { locked: patch.locked } : {}),
+            ...(patch.name !== undefined ? { name: patch.name } : {}),
+          };
+          changed.add(element.id);
+        }
+      }
+      continue;
+    }
+
+    if (operation.op === "replaceTextAll") {
+      if (typeof operation.find !== "string" || !operation.find.length) {
+        return transactionError(document, "invalid_operation", "replaceTextAll requires a find string", index);
+      }
+      if (operation.replace !== undefined && typeof operation.replace !== "string") {
+        return transactionError(document, "invalid_operation", "replaceTextAll replace must be a string", index);
+      }
+      if (operation.scope !== undefined && operation.scope !== "page" && operation.scope !== "document") {
+        return transactionError(document, "invalid_operation", "replaceTextAll scope must be page or document", index);
+      }
+      const replacement = operation.replace ?? "";
+      const sensitive = Boolean(operation.caseSensitive);
+      const find = sensitive ? operation.find : operation.find.toLowerCase();
+      const replaceIn = (value: string): string | null => {
+        const haystack = sensitive ? value : value.toLowerCase();
+        if (!haystack.includes(find)) return null;
+        if (!sensitive) {
+          // Replace case-insensitively while preserving the original casing boundaries.
+          let result = "";
+          let cursor = 0;
+          const lowered = value.toLowerCase();
+          while (cursor <= lowered.length - find.length) {
+            const at = lowered.indexOf(find, cursor);
+            if (at < 0) break;
+            result += value.slice(cursor, at) + replacement;
+            cursor = at + find.length;
+          }
+          return result + value.slice(cursor);
+        }
+        return value.split(find).join(replacement);
+      };
+      const pages = (operation.scope ?? "page") === "document" ? next.pages : [page];
+      for (const target of pages) {
+        for (const element of target.elements) {
+          let touched = false;
+          const nextContent = { ...element.content };
+          if (typeof nextContent.text === "string") {
+            const replaced = replaceIn(nextContent.text);
+            if (replaced !== null) {
+              nextContent.text = replaced;
+              if (element.runs) element.runs = replaceRunText(element.runs, replaced);
+              touched = true;
+            }
+          }
+          if (nextContent.paragraphs) {
+            let changedParagraphs = false;
+            nextContent.paragraphs = nextContent.paragraphs.map((paragraph) => {
+              const replaced = replaceIn(paragraph.text);
+              if (replaced === null) return paragraph;
+              changedParagraphs = true;
+              return { ...paragraph, text: replaced };
+            });
+            if (changedParagraphs) touched = true;
+          }
+          if (operation.includeTables !== false && element.table) {
+            const rows = element.table.rows.map((row) => row.map((cell) => {
+              const replaced = replaceIn(cell);
+              return replaced === null ? cell : (touched = true, replaced);
+            }));
+            element.table = { ...element.table, rows };
+          }
+          if (operation.includeComponents !== false && element.component) {
+            const props = { ...element.component.props };
+            for (const key of Object.keys(props)) {
+              const replaced = replaceIn(props[key]);
+              if (replaced !== null) { props[key] = replaced; touched = true; }
+            }
+            element.component = { ...element.component, props };
+          }
+          if (touched) {
+            element.content = nextContent;
+            changed.add(element.id);
+          }
+        }
+      }
+      continue;
+    }
+
+    if (operation.op === "zOrderElements") {
+      if (!["front", "back", "forward", "backward"].includes(operation.to as string)) {
+        return transactionError(document, "invalid_operation", "zOrderElements to must be front, back, forward, or backward", index);
+      }
+      if (!Array.isArray(operation.ids) || !operation.ids.length || operation.ids.some((id) => !isNonEmptyString(id))) {
+        return transactionError(document, "invalid_operation", "zOrderElements requires a non-empty id array", index);
+      }
+      const zOrderIds = operation.ids as string[];
+      const requested = page.elements.filter((item) => zOrderIds.includes(item.id) && !item.locked);
+      if (requested.length !== zOrderIds.length) {
+        return transactionError(document, "invalid_operation", "zOrderElements ids must be unlocked elements on the page", index);
+      }
+      if (operation.to === "front" || operation.to === "back") {
+        const zs = page.elements.filter((item) => !zOrderIds.includes(item.id)).map((item) => item.z);
+        const base = operation.to === "front" ? Math.max(0, ...zs) : Math.min(0, ...zs);
+        const ordered = [...requested].sort((a, b) => a.z - b.z);
+        ordered.forEach((item, order) => {
+          page.elements[page.elements.indexOf(item)] = { ...item, z: operation.to === "front" ? base + order + 1 : base - (ordered.length - order) };
+          changed.add(item.id);
+        });
+      } else {
+        const forward = operation.to === "forward";
+        const sorted = [...page.elements].sort((a, b) => a.z - b.z);
+        const indexOrder = forward ? sorted : [...sorted].reverse();
+        for (const item of indexOrder) {
+          if (!zOrderIds.includes(item.id)) continue;
+          const neighbour = indexOrder[indexOrder.indexOf(item) + (forward ? 1 : -1)];
+          if (!neighbour || zOrderIds.includes(neighbour.id)) continue;
+          const originalZ = item.z;
+          page.elements[page.elements.indexOf(item)] = { ...item, z: neighbour.z };
+          page.elements[page.elements.indexOf(neighbour)] = { ...neighbour, z: originalZ };
+          changed.add(item.id);
+        }
+      }
+      continue;
+    }
+
     if (operation.op === "patchElement") {
       if (!isNonEmptyString(operation.elementId) || !isRecord(operation.patch)) {
         return transactionError(document, "invalid_operation", "patchElement requires elementId and patch", index);
@@ -659,6 +1052,9 @@ export function applyDocumentTransaction(
       if (elementIndex < 0) return transactionError(document, "invalid_operation", `Element ${operation.elementId} was not found`, index);
       const current = page.elements[elementIndex];
       const patch = operation.patch as CanvasElementPatch;
+      if (patch.style && Object.keys(patch.style).some((key) => !Object.hasOwn(DEFAULT_STYLE, key))) {
+        return transactionError(document, "invalid_operation", `Unknown style field in patch for ${operation.elementId}`, index);
+      }
       page.elements[elementIndex] = {
         ...current,
         ...patch,
@@ -667,6 +1063,10 @@ export function applyDocumentTransaction(
         style: patch.style ? { ...current.style, ...patch.style } : current.style,
         content: patch.content ? { ...current.content, ...patch.content } : current.content,
       };
+      // Text edits keep structured paragraphs aligned per line unless the patch supplies them explicitly.
+      if (patch.content?.text !== undefined && patch.content.paragraphs === undefined && current.content?.paragraphs) {
+        page.elements[elementIndex].content = { ...page.elements[elementIndex].content, paragraphs: resyncParagraphs(current.content.paragraphs, patch.content.text) };
+      }
       if(current.runs&&patch.content?.text!==undefined&&patch.runs===undefined)page.elements[elementIndex].runs=replaceRunText(current.runs,patch.content.text);
       changed.add(current.id);
       continue;
@@ -706,6 +1106,7 @@ export function applyDocumentTransaction(
       return transactionError(document, "invalid_operation", "replaceText only supports text-bearing elements", index);
     }
     if(element.runs)element.runs=replaceRunText(element.runs,operation.text);
+    if(element.content?.paragraphs)element.content={...element.content,paragraphs:resyncParagraphs(element.content.paragraphs,operation.text)};
     element.content = { ...element.content, text: operation.text };
     element.name = operation.text.trim().slice(0, 28) || "Text box";
     changed.add(element.id);

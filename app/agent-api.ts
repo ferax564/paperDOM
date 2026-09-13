@@ -1,6 +1,7 @@
 import {randomId} from './ids.ts';
 import { effectiveLibrary } from './starter-library.ts';
 import { makeInstance, instantiateTemplate, type ComponentLibrary } from './component-library.ts';
+import { estimateTextFit, textContent, isTextBearing } from './text-metrics.ts';
 import {
   applyDocumentTransaction,
   type AgentTransactionPayload,
@@ -12,7 +13,7 @@ import {
 
 export type NodeQuery = { pageId?: string; ids?: string[]; type?: Kind; text?: string; hidden?: boolean; locked?: boolean };
 export type DocumentChange = { pageId: string; elementId?: string; action: "created" | "updated" | "deleted" | "moved"; fields: string[] };
-export type DocumentWarning = { code: "missing_alt" | "outside_page"; pageId: string; elementId: string; message: string };
+export type DocumentWarning = { code: "missing_alt" | "outside_page" | "text_overflow"; pageId: string; elementId: string; message: string };
 export type TransactionPreview = {
   ok: true;
   before: PaperDOMDocument;
@@ -53,9 +54,14 @@ export function summarizeScene(document: PaperDOMDocument, pageId: string) {
       animations: page.animations?.map((cue) => ({ id: cue.id, elementId: cue.elementId, effect: cue.effect, trigger: cue.trigger })) ?? [] },
     elements: page.elements.filter((e) => !e.hidden && !["connector", "line"].includes(e.type)).map((e) => ({
       id: e.id, type: e.type, name: e.name, definitionId: e.component?.definitionId, geometry: e.geometry, bounds: [e.frame.x, e.frame.y, e.frame.w, e.frame.h],
-      rotation: e.frame.rotation || undefined, locked: e.locked, groupId: e.groupId, text: e.content?.text,
+      rotation: e.frame.rotation || undefined, z: e.z, locked: e.locked, groupId: e.groupId, text: e.content?.text,
+      style: { fill: e.style.fill, stroke: e.style.stroke, color: e.style.color, fontFamily: e.style.fontFamily, fontSize: e.style.fontSize,
+        fontWeight: e.style.fontWeight, opacity: e.style.opacity, textAlign: e.style.textAlign,
+        fillGradient: e.style.fillGradient ? { from: e.style.fillGradient.from, to: e.style.fillGradient.to } : undefined,
+        shadow: e.style.shadow ? { blur: e.style.shadow.blur, offsetX: e.style.shadow.offsetX, offsetY: e.style.shadow.offsetY } : undefined,
+        autoFit: e.style.autoFit },
       table: e.table ? { rows: e.table.rows.length, columns: e.table.rows[0]?.length ?? 0, header: e.table.header } : undefined,
-      chart: e.chart ? { kind: e.chart.kind, title: e.chart.title, points: e.chart.values.length } : undefined,
+      chart: e.chart ? { kind: e.chart.kind, title: e.chart.title, points: e.chart.values.length, series: e.chart.series?.length ?? 1, colors: e.chart.colors } : undefined,
       media: e.media ? { src: e.media.src.slice(0, 120), autoplay: e.media.autoplay } : undefined,
       props: e.type === "component" ? e.component?.props : e.type === "plugin" ? e.content : undefined,
     })),
@@ -113,6 +119,12 @@ export function auditDocument(document: PaperDOMDocument): DocumentWarning[] {
     const warnings: DocumentWarning[] = [];
     const warn = (code: DocumentWarning["code"], message: string) => warnings.push({ code, message, pageId: page.id, elementId: element.id });
     if (element.type === "image" && !element.content?.alt?.trim()) warn("missing_alt", `${element.name || element.id} has no alternative text.`);
+    if (isTextBearing(element)) {
+      const fit = estimateTextFit(textContent(element), element.style, element.frame.w, element.frame.h);
+      if (fit.overflow) {
+        warn("text_overflow", `${element.name || element.id} text is estimated to overflow its frame (about ${fit.estimatedHeight}px in ${fit.availableHeight}px). Shrink the text, grow the frame, or set style.autoFit.`);
+      }
+    }
     if (!["line", "connector"].includes(element.type)) {
       const { x, y, w, h, rotation } = element.frame;
       const radians = rotation * Math.PI / 180;
@@ -143,9 +155,9 @@ export function isPreviewCurrent(document: PaperDOMDocument, preview: Transactio
 }
 
 export const agentCapabilities = () => ({
-  apiVersion: "0.4", documentVersions: ["0.1"],
-  operations: ["patchDocument", "createElement", "patchElement", "deleteElements", "replaceText", "createPage", "duplicatePage", "patchPage", "deletePage", "reorderPages", "duplicateElements", "moveElements", "setLibrary", "setTheme", "setMasters"],
-  features: ["outline", "query", "dry-run", "diff", "warnings", "attribution", "optimistic-concurrency", "components", "templates", "themes", "masters", "preset-geometry"],
+  apiVersion: "0.5", documentVersions: ["0.1"],
+  operations: ["patchDocument", "createElement", "patchElement", "deleteElements", "replaceText", "replaceTextAll", "createPage", "duplicatePage", "patchPage", "deletePage", "reorderPages", "duplicateElements", "moveElements", "alignElements", "distributeElements", "reorderElements", "styleAll", "zOrderElements", "setLibrary", "setTheme", "setMasters"],
+  features: ["outline", "query", "dry-run", "diff", "warnings", "attribution", "optimistic-concurrency", "components", "templates", "themes", "masters", "preset-geometry", "batch-style", "find-replace", "z-order", "align-distribute", "text-fit-warnings", "render"],
 });
 
 /** Adapters own persistence. A closure reads the latest document even between React renders. */

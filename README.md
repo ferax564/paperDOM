@@ -15,17 +15,19 @@ PaperDOM combines freeform PowerPoint-style editing with a structured, machine-r
 ## What works
 
 - Freeform text boxes with preserved multiline editing
-- Font family, size, weight, color, bold, italic, underline, and strikethrough
-- Bulleted and numbered lists, alignment, line height, tracking, and padding
-- Rectangles, ellipses, lines, arrows, images, and schema-backed plugin cards
-- Move, resize, rotate, layer ordering, multi-select, alignment, and distribution
-- PowerPoint-style smart guides and snapping, with `Alt` to bypass
-- Multiple pages with reorder, duplicate, delete, and presentation mode
-- Undo/redo, local persistence, JSON import/export, and image paste/upload
-- Stable JSON document model plus browser and headless agent APIs
-- Agent proposal review with before/after previews, diffs, warnings, accept/reject, and undo
-- CLI validation, outline/query, dry-run preview, and atomic document updates
-- Page transactions and optional plain-text speaker notes
+- Font family, size, weight, color, bold, italic, underline, and strikethrough — element-wide or on selected text runs inline
+- Real bulleted and numbered lists (hanging indent, nesting, auto-renumbering), alignment, line height, tracking, and padding
+- Rectangles, ellipses, preset-geometry shapes, lines, arrows, images, and schema-backed plugin cards
+- Gradient fills, drop shadows, image fit/focal cropping, and text auto-fit (auto-grow, shrink-to-fit, overflow warnings)
+- Multi-series bar/line charts with axes, gridlines and legends; editable tables
+- Move, resize, rotate, layer ordering, multi-select with proportional scaling, alignment and distribution against the page or selection
+- PowerPoint-style smart guides and snapping, `Alt` to bypass, toggleable layout grid with rulers, and wheel/pinch zoom from 25% to 400%
+- Multiple pages with reorder, duplicate, delete, presentation mode, speaker notes, comments, and slide masters
+- Undo/redo with typing-burst coalescing, local persistence with IndexedDB recovery mirror, JSON import/export, and image paste/upload
+- Stable JSON document model plus browser and headless agent APIs with 21 atomic operations, find/replace, batch styling, align/distribute, and z-order helpers
+- Agent proposal review with before/after previews, diffs, warnings, accept/reject, and undo; headless PNG slide rendering (`render`) for visual feedback
+- CLI validation, outline/query, dry-run preview, and atomic document updates; MCP server with components, templates, themes, rendering, and exports
+- PPTX import (structured bullets, multi-series charts, masters, media, timing subset) and native export; Keynote render pipeline evidence
 
 ## Why HTML-native?
 
@@ -71,11 +73,12 @@ New documents use the `paperdom` format identifier and export as `*.paperdom.jso
 The current model includes:
 
 - document metadata and revision
-- ordered pages with backgrounds, notes, transitions, timing, hidden state, and optional linked masters
+- ordered pages with backgrounds, notes, comments, transitions, timing, hidden state, and optional linked masters
 - typed elements with stable IDs: text, shape (with OOXML preset `geometry`), ellipse, connector, line, image, plugin, component, table, chart, audio, video
-- frames, rotation, z-order, groups, and styles
-- rich text runs and hyperlinks
+- frames, rotation, z-order, groups, and styles — including gradients, shadows, image fit/focal, and text auto-fit
+- rich text runs, hyperlinks, and structured bullet/number paragraphs
 - connector endpoints anchored to other elements
+- a published JSON Schema (`schema/paperdom.schema.json`) and a `migrateDocument()` upgrade path
 
 ## Agent API
 
@@ -99,7 +102,7 @@ window.paperdom.transaction({
 
 `window.canvasdoc` remains available as a compatibility alias during the rename.
 
-The same kernel runs headlessly: `npm run cli -- capabilities|outline|query|preview|apply|export-pptx|export-html` operates on `*.paperdom.json` files, and `npm run mcp -- deck.paperdom.json` starts a stdio MCP server exposing document reads, queries, transaction previews/applies, and PPTX/HTML exports to MCP-aware agents. See [docs/AGENT_API.md](docs/AGENT_API.md).
+The same kernel runs headlessly: `npm run cli -- capabilities|outline|query|preview|apply|export-pptx|export-html|render` operates on `*.paperdom.json` files, and `npm run mcp -- deck.paperdom.json` starts a stdio MCP server exposing document reads, queries, components/templates, transaction previews/applies, PNG rendering, and PPTX/HTML exports to MCP-aware agents. See [docs/AGENT_API.md](docs/AGENT_API.md).
 
 ## Keyboard shortcuts
 
@@ -140,12 +143,11 @@ The Shapes rail button opens a preset-geometry gallery (triangles, arrows, stars
 ## Roadmap
 
 - Full paragraph typography, scripts, and native PowerPoint text fidelity
-- Auto-fit and overflow strategies for text boxes
-- Native placeholder/layout authoring and theme inheritance
-- Broader chart/table types and native media settings
-- Comments, character-level coauthoring, and revision-history UI
-- Public plugin SDK and schema registry
-- Native PowerPoint rendering verification
+- Adjustment handles on preset geometry and richer shape authoring
+- Broader chart types (pie/area), tables with cell styling, and native media settings
+- Character-level coauthoring with live cursors on websockets, and threaded comment replies
+- Public plugin registry and an HTTP agent API wrapping the same kernel
+- Microsoft PowerPoint render verification via the existing evidence scripts; Keynote chart import parity
 
 ## License
 

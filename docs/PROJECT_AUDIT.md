@@ -1,18 +1,18 @@
 # Project audit — 18 August 2026
 
-This review covered every tracked source, configuration, test, build, and documentation file in the PaperDOM repository.
+This review covered every tracked source, configuration, test, build, and documentation file in the PaperDOM repository. The 13 September 2026 update below records the second full pass, including the executed native-render gate, the 21-operation agent kernel, and the human-editor upgrade.
 
 ## Status update — 13 September 2026
 
 Since the original audit, the following shipped and verified:
 
-- **Agent kernel**: `patchDocument`, `duplicatePage`, `duplicateElements`, `moveElements` atomic operations with id remapping, connector-endpoint freezing, and animation/group preservation; richer outline and scene summaries; capabilities reporting fixed (API 0.4, 15 operations).
-- **Headless surfaces**: CLI `export-pptx`/`export-html` with exclusive-create outputs; stdio MCP server (`npm run mcp`) with 11 tools, serialized mutations, revision-conflict checks, and blank-start persistence.
-- **Shape system**: OOXML preset-geometry field, gallery UI, SVG rendering, `Shape geometry` inspector/format-bar controls, native `prstGeom` export and warning-backed import.
-- **Editor parity**: contextual format bar (font, style, color, alignment, fill/border, z-order, grouping), F5/Shift+F5, Ctrl+G/Ctrl+Shift+G, Ctrl+]/[.
-- **PPTX fidelity**: `lnSpc`/`spc` import, `lineSpacingMultiple`/`charSpacing` export, merged-cell expansion with warning, unknown-geometry warnings.
-- **Design**: translucent-glass reskin across chrome, dialogs, canvas stage, and presentation overlay.
-- **Verification**: typecheck, lint, 164 Node tests, 66 Chromium tests, production build and artifact validation all pass. Exported decks were opened and PDF-rendered in Keynote; Keynote-produced packages re-import; geometry round-trips through PPTX. Native Microsoft PowerPoint rendering remains unverified — see POWERPOINT-COMPATIBILITY.md.
+- **Agent kernel**: 21 atomic operations — the original 15 plus `alignElements`, `distributeElements`, `reorderElements`, `styleAll` (batch restyling), `replaceTextAll` (find/replace across text, paragraphs, tables and component props), and `zOrderElements`. Unknown style keys fail loudly so agent typos cannot silently drop styling. Theme tokens now restyle raw elements: `setTheme` remaps every matching color/font across pages, masters, runs and backgrounds, and new elements inherit the theme instead of fixed defaults. Capabilities report API 0.5.
+- **Agents can see their output**: `render_page`/`render_deck` MCP tools and a CLI `render` command produce PNGs through Playwright Chromium. The Keynote evidence pipeline (`scripts/render-keynote.mjs`) executed real macOS renders and recorded native findings (charts dropped, gradients approximate) in the compatibility matrix.
+- **Components/templates over every surface**: MCP `list_components`/`list_templates`/`insert_component`/`create_page_from_template`/`apply_theme_preset`; the starter library is always available, even on blank decks.
+- **Visual feedback in validation**: `text_overflow` estimates in preview/audit; `sceneSummary` now carries `z` and a full style digest so agents do not need full-document reads.
+- **Human editor**: inline run-level formatting with a live selection toolbar (bold/italic/underline/strike/color/link), real bulleted and numbered lists with hanging indent, nesting and auto-renumbering round-tripped through native PowerPoint bullets, text auto-fit (auto-grow, shrink-to-fit, overflow indicators), gradient fills and drop shadows on shapes and text boxes, image fit/focal cropping, multi-series charts with axes/gridlines/legends and per-series colors, right-click context menus, toggleable grid with rulers, align/distribute against the page or selection, proportional multi-selection scaling, wheel/pinch zoom 25–400% with fit-to-window, and typing-burst undo coalescing.
+- **Format and platform**: published JSON Schema (`schema/paperdom.schema.json`) with a `migrateDocument()` versioning path, declarative plugin manifests, page comments merged by ID, presence cursors (page + position in the peers list), ordered R2 snapshots with `/revisions` list and `/restore` endpoints plus 20-version retention, `wrangler.toml` for standard Cloudflare deploys, and bearer-token identity for portable hosting.
+- **Verification**: typecheck, lint, 176 Node tests, 66 Chromium tests, production build and artifact validation all pass.
 
 ## Corrected in this pass
 
@@ -50,7 +50,7 @@ The review also replaced Vinext 0.0.50 with 1.0.0-beta.6. The current line remov
 
 ## Product gaps, not test defects
 
-Rich text, masters, tables/charts, standalone HTML export, collaboration, and cloud storage have since shipped. Remaining gaps: a published agent SDK, native Microsoft PowerPoint verification, Firefox/Safari and assistive-technology testing, adjustment handles on preset geometry, merged-cell authoring, and large-deck performance evidence.
+Remaining gaps: native Microsoft PowerPoint verification, Firefox/Safari and assistive-technology testing, adjustment handles on preset geometry, merged-cell authoring, large-deck performance evidence, websocket live cursors, and an HTTP/npm agent SDK.
 
 ## Release recommendation
 

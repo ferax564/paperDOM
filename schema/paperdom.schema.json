@@ -1,0 +1,1567 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://paperdom.dev/schema/paperdom-0.1.schema.json",
+  "title": "PaperDOM 0.1 document",
+  "description": "Canonical JSON model for PaperDOM decks. html-rendered, agent-editable, PowerPoint-interoperable.",
+  "type": "object",
+  "properties": {
+    "format": {
+      "const": "paperdom"
+    },
+    "version": {
+      "const": "0.1"
+    },
+    "id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "title": {
+      "type": "string"
+    },
+    "revision": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "pages": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "minLength": 1
+          },
+          "name": {
+            "type": "string"
+          },
+          "notes": {
+            "type": "string"
+          },
+          "hidden": {
+            "type": "boolean"
+          },
+          "transition": {
+            "enum": [
+              "none",
+              "fade",
+              "slide"
+            ]
+          },
+          "advanceSeconds": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 3600
+          },
+          "masterId": {
+            "type": "string",
+            "minLength": 1
+          },
+          "inheritBackground": {
+            "type": "boolean"
+          },
+          "animations": {
+            "type": "array",
+            "maxItems": 200,
+            "items": {
+              "$ref": "#/$defs/animationCue"
+            }
+          },
+          "size": {
+            "type": "object",
+            "properties": {
+              "width": {
+                "type": "number",
+                "exclusiveMinimum": 0
+              },
+              "height": {
+                "type": "number",
+                "exclusiveMinimum": 0
+              }
+            },
+            "required": [
+              "width",
+              "height"
+            ],
+            "additionalProperties": false
+          },
+          "background": {
+            "type": "object",
+            "properties": {
+              "color": {
+                "type": "string",
+                "not": {
+                  "pattern": "\\b(?:url|image-set)\\s*\\(",
+                  "description": "Paint values cannot load external resources"
+                }
+              }
+            },
+            "required": [
+              "color"
+            ],
+            "additionalProperties": false
+          },
+          "elements": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "type": {
+                  "enum": [
+                    "text",
+                    "shape",
+                    "ellipse",
+                    "connector",
+                    "line",
+                    "image",
+                    "plugin",
+                    "component",
+                    "table",
+                    "chart",
+                    "audio",
+                    "video"
+                  ]
+                },
+                "name": {
+                  "type": "string"
+                },
+                "frame": {
+                  "type": "object",
+                  "properties": {
+                    "x": {
+                      "type": "number"
+                    },
+                    "y": {
+                      "type": "number"
+                    },
+                    "w": {
+                      "type": "number"
+                    },
+                    "h": {
+                      "type": "number"
+                    },
+                    "rotation": {
+                      "type": "number"
+                    }
+                  },
+                  "required": [
+                    "x",
+                    "y",
+                    "w",
+                    "h",
+                    "rotation"
+                  ],
+                  "additionalProperties": false
+                },
+                "z": {
+                  "type": "number"
+                },
+                "style": {
+                  "type": "object",
+                  "properties": {
+                    "fill": {
+                      "type": "string",
+                      "not": {
+                        "pattern": "\\b(?:url|image-set)\\s*\\(",
+                        "description": "Paint values cannot load external resources"
+                      }
+                    },
+                    "stroke": {
+                      "type": "string",
+                      "not": {
+                        "pattern": "\\b(?:url|image-set)\\s*\\(",
+                        "description": "Paint values cannot load external resources"
+                      }
+                    },
+                    "strokeWidth": {
+                      "type": "number"
+                    },
+                    "radius": {
+                      "type": "number"
+                    },
+                    "opacity": {
+                      "type": "number",
+                      "minimum": 0,
+                      "maximum": 1
+                    },
+                    "color": {
+                      "type": "string",
+                      "not": {
+                        "pattern": "\\b(?:url|image-set)\\s*\\(",
+                        "description": "Paint values cannot load external resources"
+                      }
+                    },
+                    "fontSize": {
+                      "type": "number",
+                      "exclusiveMinimum": 0
+                    },
+                    "fontWeight": {
+                      "type": "number"
+                    },
+                    "textAlign": {
+                      "enum": [
+                        "left",
+                        "center",
+                        "right"
+                      ]
+                    },
+                    "fontFamily": {
+                      "type": "string"
+                    },
+                    "fontStyle": {
+                      "enum": [
+                        "normal",
+                        "italic"
+                      ]
+                    },
+                    "underline": {
+                      "type": "boolean"
+                    },
+                    "strike": {
+                      "type": "boolean"
+                    },
+                    "lineHeight": {
+                      "type": "number",
+                      "exclusiveMinimum": 0
+                    },
+                    "letterSpacing": {
+                      "type": "number"
+                    },
+                    "verticalAlign": {
+                      "enum": [
+                        "top",
+                        "middle",
+                        "bottom"
+                      ]
+                    },
+                    "padding": {
+                      "type": "number",
+                      "minimum": 0
+                    },
+                    "lineStyle": {
+                      "enum": [
+                        "solid",
+                        "dashed"
+                      ]
+                    },
+                    "fillGradient": {
+                      "type": "object",
+                      "properties": {
+                        "from": {
+                          "type": "string",
+                          "not": {
+                            "pattern": "\\b(?:url|image-set)\\s*\\(",
+                            "description": "Paint values cannot load external resources"
+                          }
+                        },
+                        "to": {
+                          "type": "string",
+                          "not": {
+                            "pattern": "\\b(?:url|image-set)\\s*\\(",
+                            "description": "Paint values cannot load external resources"
+                          }
+                        },
+                        "angle": {
+                          "type": "number"
+                        }
+                      },
+                      "required": [
+                        "from",
+                        "to",
+                        "angle"
+                      ],
+                      "additionalProperties": false
+                    },
+                    "shadow": {
+                      "type": "object",
+                      "properties": {
+                        "color": {
+                          "type": "string",
+                          "not": {
+                            "pattern": "\\b(?:url|image-set)\\s*\\(",
+                            "description": "Paint values cannot load external resources"
+                          }
+                        },
+                        "blur": {
+                          "type": "number",
+                          "minimum": 0
+                        },
+                        "offsetX": {
+                          "type": "number"
+                        },
+                        "offsetY": {
+                          "type": "number"
+                        }
+                      },
+                      "required": [
+                        "color",
+                        "blur",
+                        "offsetX",
+                        "offsetY"
+                      ],
+                      "additionalProperties": false
+                    },
+                    "fit": {
+                      "enum": [
+                        "cover",
+                        "contain"
+                      ]
+                    },
+                    "focal": {
+                      "type": "object",
+                      "properties": {
+                        "x": {
+                          "type": "number",
+                          "minimum": 0,
+                          "maximum": 1
+                        },
+                        "y": {
+                          "type": "number",
+                          "minimum": 0,
+                          "maximum": 1
+                        }
+                      },
+                      "required": [
+                        "x",
+                        "y"
+                      ],
+                      "additionalProperties": false
+                    },
+                    "autoFit": {
+                      "enum": [
+                        "none",
+                        "grow",
+                        "shrink"
+                      ]
+                    }
+                  },
+                  "additionalProperties": false
+                },
+                "locked": {
+                  "type": "boolean"
+                },
+                "hidden": {
+                  "type": "boolean"
+                },
+                "geometry": {
+                  "type": "string",
+                  "description": "OOXML preset geometry name; see app/geometry-shapes.ts for the supported set"
+                },
+                "from": {
+                  "$ref": "#/$defs/endpoint"
+                },
+                "to": {
+                  "$ref": "#/$defs/endpoint"
+                },
+                "content": {
+                  "type": "object",
+                  "properties": {
+                    "text": {
+                      "type": "string"
+                    },
+                    "src": {
+                      "type": "string"
+                    },
+                    "alt": {
+                      "type": "string"
+                    },
+                    "label": {
+                      "type": "string"
+                    },
+                    "value": {
+                      "type": "string"
+                    },
+                    "trend": {
+                      "type": "string"
+                    },
+                    "accent": {
+                      "type": "string"
+                    },
+                    "paragraphs": {
+                      "type": "array",
+                      "maxItems": 200,
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "text": {
+                            "type": "string"
+                          },
+                          "kind": {
+                            "enum": [
+                              "bullet",
+                              "number",
+                              "plain"
+                            ]
+                          },
+                          "level": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "maximum": 4
+                          }
+                        },
+                        "required": [
+                          "text"
+                        ],
+                        "additionalProperties": false
+                      }
+                    }
+                  },
+                  "additionalProperties": false
+                },
+                "component": {
+                  "type": "object",
+                  "properties": {
+                    "definitionId": {
+                      "type": "string"
+                    },
+                    "props": {
+                      "type": "object",
+                      "additionalProperties": {
+                        "type": "string"
+                      }
+                    },
+                    "overrides": {
+                      "type": "object",
+                      "additionalProperties": true
+                    }
+                  },
+                  "required": [
+                    "definitionId",
+                    "props"
+                  ],
+                  "additionalProperties": false
+                },
+                "table": {
+                  "type": "object",
+                  "properties": {
+                    "header": {
+                      "type": "boolean"
+                    },
+                    "rows": {
+                      "type": "array",
+                      "minItems": 1,
+                      "maxItems": 50,
+                      "items": {
+                        "type": "array",
+                        "minItems": 1,
+                        "maxItems": 20,
+                        "items": {
+                          "type": "string"
+                        }
+                      }
+                    }
+                  },
+                  "required": [
+                    "header",
+                    "rows"
+                  ],
+                  "additionalProperties": false
+                },
+                "chart": {
+                  "type": "object",
+                  "properties": {
+                    "kind": {
+                      "enum": [
+                        "bar",
+                        "line"
+                      ]
+                    },
+                    "labels": {
+                      "type": "array",
+                      "minItems": 1,
+                      "maxItems": 50,
+                      "items": {
+                        "type": "string"
+                      }
+                    },
+                    "values": {
+                      "type": "array",
+                      "minItems": 1,
+                      "maxItems": 50,
+                      "items": {
+                        "type": "number"
+                      }
+                    },
+                    "title": {
+                      "type": "string"
+                    },
+                    "series": {
+                      "type": "array",
+                      "maxItems": 10,
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "name": {
+                            "type": "string"
+                          },
+                          "values": {
+                            "type": "array",
+                            "items": {
+                              "type": "number"
+                            }
+                          }
+                        },
+                        "required": [
+                          "name",
+                          "values"
+                        ],
+                        "additionalProperties": false
+                      }
+                    },
+                    "colors": {
+                      "type": "array",
+                      "maxItems": 10,
+                      "items": {
+                        "type": "string"
+                      }
+                    },
+                    "grid": {
+                      "type": "boolean"
+                    }
+                  },
+                  "required": [
+                    "kind",
+                    "labels",
+                    "values",
+                    "title"
+                  ],
+                  "additionalProperties": false
+                },
+                "groupId": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "aspectLocked": {
+                  "type": "boolean"
+                },
+                "runs": {
+                  "type": "array",
+                  "maxItems": 10000,
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "text": {
+                        "type": "string"
+                      },
+                      "style": {
+                        "type": "object",
+                        "properties": {
+                          "fontFamily": {
+                            "type": "string"
+                          },
+                          "fontSize": {
+                            "type": "number",
+                            "exclusiveMinimum": 0,
+                            "maximum": 1000
+                          },
+                          "fontWeight": {
+                            "type": "number"
+                          },
+                          "fontStyle": {
+                            "enum": [
+                              "normal",
+                              "italic"
+                            ]
+                          },
+                          "underline": {
+                            "type": "boolean"
+                          },
+                          "strike": {
+                            "type": "boolean"
+                          },
+                          "color": {
+                            "type": "string",
+                            "not": {
+                              "pattern": "\\b(?:url|image-set)\\s*\\(",
+                              "description": "Paint values cannot load external resources"
+                            }
+                          }
+                        },
+                        "additionalProperties": false
+                      },
+                      "link": {
+                        "type": "string",
+                        "pattern": "^(https?:\\/\\/|mailto:)",
+                        "description": "Hyperlink scheme allowlist"
+                      }
+                    },
+                    "required": [
+                      "text"
+                    ],
+                    "additionalProperties": false
+                  }
+                },
+                "media": {
+                  "type": "object",
+                  "properties": {
+                    "src": {
+                      "type": "string",
+                      "pattern": "^(https:\\/\\/|data:(audio|video)\\/(mp4|mpeg|ogg|webm|wav);base64,|\\/api\\/assets\\/)"
+                    },
+                    "poster": {
+                      "type": "string"
+                    },
+                    "captions": {
+                      "type": "string"
+                    },
+                    "autoplay": {
+                      "type": "boolean"
+                    },
+                    "loop": {
+                      "type": "boolean"
+                    },
+                    "muted": {
+                      "type": "boolean"
+                    },
+                    "start": {
+                      "type": "number",
+                      "minimum": 0
+                    },
+                    "end": {
+                      "type": "number",
+                      "exclusiveMinimum": 0
+                    }
+                  },
+                  "required": [
+                    "src",
+                    "autoplay",
+                    "loop",
+                    "muted",
+                    "start"
+                  ],
+                  "additionalProperties": false
+                }
+              },
+              "required": [
+                "id",
+                "type",
+                "name",
+                "frame",
+                "z",
+                "style"
+              ],
+              "additionalProperties": true
+            }
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "size",
+          "background",
+          "elements"
+        ],
+        "additionalProperties": true
+      }
+    },
+    "plugins": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "minLength": 1
+          },
+          "version": {
+            "type": "string",
+            "pattern": "^\\d+\\.\\d+\\.\\d+$"
+          },
+          "name": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          },
+          "fields": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "key": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "label": {
+                  "type": "string"
+                },
+                "type": {
+                  "enum": [
+                    "text",
+                    "color"
+                  ]
+                }
+              },
+              "required": [
+                "key",
+                "label"
+              ],
+              "additionalProperties": false
+            }
+          }
+        },
+        "required": [
+          "id",
+          "version"
+        ],
+        "additionalProperties": true
+      }
+    },
+    "powerPointSource": {
+      "type": "object",
+      "properties": {
+        "base64": {
+          "type": "string"
+        },
+        "sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "modelSha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        }
+      },
+      "required": [
+        "base64",
+        "sha256",
+        "modelSha256"
+      ],
+      "additionalProperties": false
+    },
+    "masters": {
+      "type": "array",
+      "maxItems": 100,
+      "items": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "minLength": 1
+          },
+          "name": {
+            "type": "string"
+          },
+          "notes": {
+            "type": "string"
+          },
+          "hidden": {
+            "type": "boolean"
+          },
+          "transition": {
+            "enum": [
+              "none",
+              "fade",
+              "slide"
+            ]
+          },
+          "advanceSeconds": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 3600
+          },
+          "masterId": {
+            "type": "string",
+            "minLength": 1
+          },
+          "inheritBackground": {
+            "type": "boolean"
+          },
+          "animations": {
+            "type": "array",
+            "maxItems": 200,
+            "items": {
+              "$ref": "#/$defs/animationCue"
+            }
+          },
+          "size": {
+            "type": "object",
+            "properties": {
+              "width": {
+                "type": "number",
+                "exclusiveMinimum": 0
+              },
+              "height": {
+                "type": "number",
+                "exclusiveMinimum": 0
+              }
+            },
+            "required": [
+              "width",
+              "height"
+            ],
+            "additionalProperties": false
+          },
+          "background": {
+            "type": "object",
+            "properties": {
+              "color": {
+                "type": "string",
+                "not": {
+                  "pattern": "\\b(?:url|image-set)\\s*\\(",
+                  "description": "Paint values cannot load external resources"
+                }
+              }
+            },
+            "required": [
+              "color"
+            ],
+            "additionalProperties": false
+          },
+          "elements": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "type": {
+                  "enum": [
+                    "text",
+                    "shape",
+                    "ellipse",
+                    "connector",
+                    "line",
+                    "image",
+                    "plugin",
+                    "component",
+                    "table",
+                    "chart",
+                    "audio",
+                    "video"
+                  ]
+                },
+                "name": {
+                  "type": "string"
+                },
+                "frame": {
+                  "type": "object",
+                  "properties": {
+                    "x": {
+                      "type": "number"
+                    },
+                    "y": {
+                      "type": "number"
+                    },
+                    "w": {
+                      "type": "number"
+                    },
+                    "h": {
+                      "type": "number"
+                    },
+                    "rotation": {
+                      "type": "number"
+                    }
+                  },
+                  "required": [
+                    "x",
+                    "y",
+                    "w",
+                    "h",
+                    "rotation"
+                  ],
+                  "additionalProperties": false
+                },
+                "z": {
+                  "type": "number"
+                },
+                "style": {
+                  "type": "object",
+                  "properties": {
+                    "fill": {
+                      "type": "string",
+                      "not": {
+                        "pattern": "\\b(?:url|image-set)\\s*\\(",
+                        "description": "Paint values cannot load external resources"
+                      }
+                    },
+                    "stroke": {
+                      "type": "string",
+                      "not": {
+                        "pattern": "\\b(?:url|image-set)\\s*\\(",
+                        "description": "Paint values cannot load external resources"
+                      }
+                    },
+                    "strokeWidth": {
+                      "type": "number"
+                    },
+                    "radius": {
+                      "type": "number"
+                    },
+                    "opacity": {
+                      "type": "number",
+                      "minimum": 0,
+                      "maximum": 1
+                    },
+                    "color": {
+                      "type": "string",
+                      "not": {
+                        "pattern": "\\b(?:url|image-set)\\s*\\(",
+                        "description": "Paint values cannot load external resources"
+                      }
+                    },
+                    "fontSize": {
+                      "type": "number",
+                      "exclusiveMinimum": 0
+                    },
+                    "fontWeight": {
+                      "type": "number"
+                    },
+                    "textAlign": {
+                      "enum": [
+                        "left",
+                        "center",
+                        "right"
+                      ]
+                    },
+                    "fontFamily": {
+                      "type": "string"
+                    },
+                    "fontStyle": {
+                      "enum": [
+                        "normal",
+                        "italic"
+                      ]
+                    },
+                    "underline": {
+                      "type": "boolean"
+                    },
+                    "strike": {
+                      "type": "boolean"
+                    },
+                    "lineHeight": {
+                      "type": "number",
+                      "exclusiveMinimum": 0
+                    },
+                    "letterSpacing": {
+                      "type": "number"
+                    },
+                    "verticalAlign": {
+                      "enum": [
+                        "top",
+                        "middle",
+                        "bottom"
+                      ]
+                    },
+                    "padding": {
+                      "type": "number",
+                      "minimum": 0
+                    },
+                    "lineStyle": {
+                      "enum": [
+                        "solid",
+                        "dashed"
+                      ]
+                    },
+                    "fillGradient": {
+                      "type": "object",
+                      "properties": {
+                        "from": {
+                          "type": "string",
+                          "not": {
+                            "pattern": "\\b(?:url|image-set)\\s*\\(",
+                            "description": "Paint values cannot load external resources"
+                          }
+                        },
+                        "to": {
+                          "type": "string",
+                          "not": {
+                            "pattern": "\\b(?:url|image-set)\\s*\\(",
+                            "description": "Paint values cannot load external resources"
+                          }
+                        },
+                        "angle": {
+                          "type": "number"
+                        }
+                      },
+                      "required": [
+                        "from",
+                        "to",
+                        "angle"
+                      ],
+                      "additionalProperties": false
+                    },
+                    "shadow": {
+                      "type": "object",
+                      "properties": {
+                        "color": {
+                          "type": "string",
+                          "not": {
+                            "pattern": "\\b(?:url|image-set)\\s*\\(",
+                            "description": "Paint values cannot load external resources"
+                          }
+                        },
+                        "blur": {
+                          "type": "number",
+                          "minimum": 0
+                        },
+                        "offsetX": {
+                          "type": "number"
+                        },
+                        "offsetY": {
+                          "type": "number"
+                        }
+                      },
+                      "required": [
+                        "color",
+                        "blur",
+                        "offsetX",
+                        "offsetY"
+                      ],
+                      "additionalProperties": false
+                    },
+                    "fit": {
+                      "enum": [
+                        "cover",
+                        "contain"
+                      ]
+                    },
+                    "focal": {
+                      "type": "object",
+                      "properties": {
+                        "x": {
+                          "type": "number",
+                          "minimum": 0,
+                          "maximum": 1
+                        },
+                        "y": {
+                          "type": "number",
+                          "minimum": 0,
+                          "maximum": 1
+                        }
+                      },
+                      "required": [
+                        "x",
+                        "y"
+                      ],
+                      "additionalProperties": false
+                    },
+                    "autoFit": {
+                      "enum": [
+                        "none",
+                        "grow",
+                        "shrink"
+                      ]
+                    }
+                  },
+                  "additionalProperties": false
+                },
+                "locked": {
+                  "type": "boolean"
+                },
+                "hidden": {
+                  "type": "boolean"
+                },
+                "geometry": {
+                  "type": "string",
+                  "description": "OOXML preset geometry name; see app/geometry-shapes.ts for the supported set"
+                },
+                "from": {
+                  "$ref": "#/$defs/endpoint"
+                },
+                "to": {
+                  "$ref": "#/$defs/endpoint"
+                },
+                "content": {
+                  "type": "object",
+                  "properties": {
+                    "text": {
+                      "type": "string"
+                    },
+                    "src": {
+                      "type": "string"
+                    },
+                    "alt": {
+                      "type": "string"
+                    },
+                    "label": {
+                      "type": "string"
+                    },
+                    "value": {
+                      "type": "string"
+                    },
+                    "trend": {
+                      "type": "string"
+                    },
+                    "accent": {
+                      "type": "string"
+                    },
+                    "paragraphs": {
+                      "type": "array",
+                      "maxItems": 200,
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "text": {
+                            "type": "string"
+                          },
+                          "kind": {
+                            "enum": [
+                              "bullet",
+                              "number",
+                              "plain"
+                            ]
+                          },
+                          "level": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "maximum": 4
+                          }
+                        },
+                        "required": [
+                          "text"
+                        ],
+                        "additionalProperties": false
+                      }
+                    }
+                  },
+                  "additionalProperties": false
+                },
+                "component": {
+                  "type": "object",
+                  "properties": {
+                    "definitionId": {
+                      "type": "string"
+                    },
+                    "props": {
+                      "type": "object",
+                      "additionalProperties": {
+                        "type": "string"
+                      }
+                    },
+                    "overrides": {
+                      "type": "object",
+                      "additionalProperties": true
+                    }
+                  },
+                  "required": [
+                    "definitionId",
+                    "props"
+                  ],
+                  "additionalProperties": false
+                },
+                "table": {
+                  "type": "object",
+                  "properties": {
+                    "header": {
+                      "type": "boolean"
+                    },
+                    "rows": {
+                      "type": "array",
+                      "minItems": 1,
+                      "maxItems": 50,
+                      "items": {
+                        "type": "array",
+                        "minItems": 1,
+                        "maxItems": 20,
+                        "items": {
+                          "type": "string"
+                        }
+                      }
+                    }
+                  },
+                  "required": [
+                    "header",
+                    "rows"
+                  ],
+                  "additionalProperties": false
+                },
+                "chart": {
+                  "type": "object",
+                  "properties": {
+                    "kind": {
+                      "enum": [
+                        "bar",
+                        "line"
+                      ]
+                    },
+                    "labels": {
+                      "type": "array",
+                      "minItems": 1,
+                      "maxItems": 50,
+                      "items": {
+                        "type": "string"
+                      }
+                    },
+                    "values": {
+                      "type": "array",
+                      "minItems": 1,
+                      "maxItems": 50,
+                      "items": {
+                        "type": "number"
+                      }
+                    },
+                    "title": {
+                      "type": "string"
+                    },
+                    "series": {
+                      "type": "array",
+                      "maxItems": 10,
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "name": {
+                            "type": "string"
+                          },
+                          "values": {
+                            "type": "array",
+                            "items": {
+                              "type": "number"
+                            }
+                          }
+                        },
+                        "required": [
+                          "name",
+                          "values"
+                        ],
+                        "additionalProperties": false
+                      }
+                    },
+                    "colors": {
+                      "type": "array",
+                      "maxItems": 10,
+                      "items": {
+                        "type": "string"
+                      }
+                    },
+                    "grid": {
+                      "type": "boolean"
+                    }
+                  },
+                  "required": [
+                    "kind",
+                    "labels",
+                    "values",
+                    "title"
+                  ],
+                  "additionalProperties": false
+                },
+                "groupId": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "aspectLocked": {
+                  "type": "boolean"
+                },
+                "runs": {
+                  "type": "array",
+                  "maxItems": 10000,
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "text": {
+                        "type": "string"
+                      },
+                      "style": {
+                        "type": "object",
+                        "properties": {
+                          "fontFamily": {
+                            "type": "string"
+                          },
+                          "fontSize": {
+                            "type": "number",
+                            "exclusiveMinimum": 0,
+                            "maximum": 1000
+                          },
+                          "fontWeight": {
+                            "type": "number"
+                          },
+                          "fontStyle": {
+                            "enum": [
+                              "normal",
+                              "italic"
+                            ]
+                          },
+                          "underline": {
+                            "type": "boolean"
+                          },
+                          "strike": {
+                            "type": "boolean"
+                          },
+                          "color": {
+                            "type": "string",
+                            "not": {
+                              "pattern": "\\b(?:url|image-set)\\s*\\(",
+                              "description": "Paint values cannot load external resources"
+                            }
+                          }
+                        },
+                        "additionalProperties": false
+                      },
+                      "link": {
+                        "type": "string",
+                        "pattern": "^(https?:\\/\\/|mailto:)",
+                        "description": "Hyperlink scheme allowlist"
+                      }
+                    },
+                    "required": [
+                      "text"
+                    ],
+                    "additionalProperties": false
+                  }
+                },
+                "media": {
+                  "type": "object",
+                  "properties": {
+                    "src": {
+                      "type": "string",
+                      "pattern": "^(https:\\/\\/|data:(audio|video)\\/(mp4|mpeg|ogg|webm|wav);base64,|\\/api\\/assets\\/)"
+                    },
+                    "poster": {
+                      "type": "string"
+                    },
+                    "captions": {
+                      "type": "string"
+                    },
+                    "autoplay": {
+                      "type": "boolean"
+                    },
+                    "loop": {
+                      "type": "boolean"
+                    },
+                    "muted": {
+                      "type": "boolean"
+                    },
+                    "start": {
+                      "type": "number",
+                      "minimum": 0
+                    },
+                    "end": {
+                      "type": "number",
+                      "exclusiveMinimum": 0
+                    }
+                  },
+                  "required": [
+                    "src",
+                    "autoplay",
+                    "loop",
+                    "muted",
+                    "start"
+                  ],
+                  "additionalProperties": false
+                }
+              },
+              "required": [
+                "id",
+                "type",
+                "name",
+                "frame",
+                "z",
+                "style"
+              ],
+              "additionalProperties": true
+            }
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "size",
+          "background",
+          "elements"
+        ],
+        "additionalProperties": true
+      }
+    },
+    "library": {
+      "$ref": "#/$defs/library"
+    },
+    "theme": {
+      "$ref": "#/$defs/theme"
+    },
+    "metadata": {
+      "type": "object",
+      "properties": {
+        "createdAt": {
+          "type": "string"
+        },
+        "updatedAt": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "createdAt",
+        "updatedAt"
+      ],
+      "additionalProperties": false
+    }
+  },
+  "required": [
+    "format",
+    "version",
+    "id",
+    "title",
+    "revision",
+    "pages",
+    "plugins",
+    "metadata"
+  ],
+  "additionalProperties": false,
+  "$defs": {
+    "endpoint": {
+      "type": "object",
+      "properties": {
+        "elementId": {
+          "type": "string",
+          "minLength": 1
+        },
+        "anchor": {
+          "enum": [
+            "top",
+            "right",
+            "bottom",
+            "left"
+          ]
+        },
+        "x": {
+          "type": "number"
+        },
+        "y": {
+          "type": "number"
+        }
+      },
+      "additionalProperties": false,
+      "anyOf": [
+        {
+          "required": [
+            "elementId",
+            "anchor"
+          ]
+        },
+        {
+          "required": [
+            "x",
+            "y"
+          ]
+        }
+      ]
+    },
+    "animationCue": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "elementId": {
+          "type": "string",
+          "minLength": 1
+        },
+        "effect": {
+          "enum": [
+            "appear",
+            "fade-in",
+            "fade-out",
+            "fly-in",
+            "zoom",
+            "spin",
+            "pulse",
+            "move"
+          ]
+        },
+        "trigger": {
+          "enum": [
+            "click",
+            "with-previous",
+            "after-previous"
+          ]
+        },
+        "duration": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 60
+        },
+        "delay": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 3600
+        },
+        "dx": {
+          "type": "number"
+        },
+        "dy": {
+          "type": "number"
+        }
+      },
+      "required": [
+        "id",
+        "elementId",
+        "effect",
+        "trigger",
+        "duration",
+        "delay"
+      ],
+      "additionalProperties": false
+    },
+    "theme": {
+      "type": "object",
+      "properties": {
+        "accent": {
+          "type": "string"
+        },
+        "surface": {
+          "type": "string"
+        },
+        "ink": {
+          "type": "string"
+        },
+        "muted": {
+          "type": "string"
+        },
+        "fontFamily": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "accent",
+        "surface",
+        "ink",
+        "muted",
+        "fontFamily"
+      ],
+      "additionalProperties": false
+    },
+    "library": {
+      "type": "object",
+      "properties": {
+        "format": {
+          "const": "paperdom-library"
+        },
+        "version": {
+          "const": "1.0"
+        },
+        "name": {
+          "type": "string"
+        },
+        "components": {
+          "type": "array",
+          "maxItems": 200,
+          "items": {
+            "type": "object"
+          }
+        },
+        "templates": {
+          "type": "array",
+          "maxItems": 100,
+          "items": {
+            "type": "object"
+          }
+        }
+      },
+      "required": [
+        "format",
+        "version",
+        "name",
+        "components",
+        "templates"
+      ],
+      "additionalProperties": false
+    }
+  }
+}

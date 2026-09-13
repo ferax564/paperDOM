@@ -1,6 +1,6 @@
 # PaperDOM presentation audit and compatibility
 
-Audit date: 2026-09-05. This is a capability inventory and regression-test map, **not a claim of complete PowerPoint parity**. PowerPoint differs across Windows, macOS, web, and mobile; even Microsoft's comparison explicitly says its list is not comprehensive. No finite automated suite proves that every behavior is correct.
+Audit date: 2026-09-13. This is a capability inventory and regression-test map, **not a claim of complete PowerPoint parity**. PowerPoint differs across Windows, macOS, web, and mobile; even Microsoft's comparison explicitly says its list is not comprehensive. No finite automated suite proves that every behavior is correct.
 
 Baseline: [Microsoft's platform feature comparison](https://support.microsoft.com/en-us/powerpoint/compare-powerpoint-features-on-different-platforms), [PowerPoint accessibility guidance](https://support.microsoft.com/en-us/accessibility/powerpoint/make-your-powerpoint-presentations-accessible-to-people-with-disabilities), and [PowerPoint collaboration](https://support.microsoft.com/en-us/powerpoint/work-together-on-powerpoint-presentations).
 
@@ -21,10 +21,10 @@ No new runtime dependency was added. The implementation uses the existing schema
 
 ## Verification
 
-- Local production build, lint, typecheck and 121 baseline Node/CLI/artifact/export/database tests pass.
+- Local production build, lint, typecheck and 163 baseline Node/CLI/artifact/export/database tests pass.
 - GitHub CI also runs the Chromium suite, including range formatting, linked master updates, all eight effects, PPTX import, corrupt-file recovery, real WAV playback and conflict handling.
 - Server tests use real SQLite statements with an in-memory R2 adapter. The client collaboration browser test uses intercepted HTTP responses; this is not a multi-user test on the hosted service.
-- Native Microsoft PowerPoint rendering/playback, Firefox/Safari and assistive technology remain **unverified**.
+- Native Microsoft PowerPoint rendering/playback remains **unverified**. The new [Keynote render pipeline](NATIVE-RENDERING.md) (`scripts/render-keynote.mjs`) has executed real macOS renders of regenerated exports: text, tables, gradient cards with shadows and preset geometry render; **Keynote does not import regenerated chart parts** (both single- and multi-series were silently dropped in the 2026-09-13 run) and gradients approximate to a solid color. Firefox/Safari and assistive technology remain untested.
 - Earlier CI failures remain visible in history. Each release must pass the checks on its current PR head and merged main commit.
 
 ## Current continuation: native preservation and character synchronization
@@ -87,8 +87,8 @@ Full PowerPoint parity remains unfinished. Native rendering execution, complete 
 |---|---|---|
 | PaperDOM JSON | Import and export | Canonical lossless format for this model; validated schema and round trips |
 | Library JSON | Import and export | Linked definitions, properties, tokens and slide templates; declarative primitives only |
-| PowerPoint `.pptx` | Export | Native editable text/shapes/tables/charts/images, connectors, speaker notes and hidden slides. Preset geometry exports as native `prstGeom` shapes. Rich runs, hyperlinks, line spacing, character tracking and audio/video are included. Basic masters retain native layout linkage; other masters and components flatten into editable primitives |
-| PowerPoint `.pptx` | Import | Implemented subset above. 30 MB compressed, 100 MB expanded, at most 10,000 ZIP entries; XML entities rejected. Not a full fidelity guarantee |
+| PowerPoint `.pptx` | Export | Native editable text/shapes/tables/charts/images, connectors, speaker notes and hidden slides. Preset geometry exports as native `prstGeom` shapes. Rich runs, hyperlinks, line spacing, character tracking, structured bullet lists (up to 4 levels), audio/video, drop shadows and up to 10 named chart series with per-series colors are included. Basic masters retain native layout linkage; other masters and components flatten into editable primitives. Gradient fills export as their `from` color. |
+| PowerPoint `.pptx` | Import | Implemented subset above. 30 MB compressed, 100 MB expanded, at most 10,000 ZIP entries; XML entities rejected. Structured bullets (`buChar`/`buAutoNum`/`lvl`) import as real list paragraphs; up to 10 native chart series import with series colors. Not a full fidelity guarantee |
 | PowerPoint rendering | OOXML structural checks | ZIP entries, editable object XML, chart relationships, notes, embedded images, emphasis and rotation are tested. Opening/rendering in Windows/macOS PowerPoint has **not** been verified |
 | PowerPoint fidelity | Partial | One global slide size based on the first slide; mixed sizes fit within it. Fonts may substitute. Text wrapping, spacing, opacity, table/chart styles and rounded corners can differ. Transitions, native object timing, media trim/loop settings and group metadata are not exported. Hex colors are supported; other CSS colors fall back. External/WebP images fail explicitly; embed PNG/JPEG/GIF/SVG first |
 | Standalone HTML | Offline read-only export | Embedded images, rich text/links, master content, audio/video controls, tables/charts, connectors and keyboard navigation. Excludes hidden slides and speaker notes. Uses Arial; does not retain editor, component linkage, timed playback or transitions. External images become alt-text placeholders |
@@ -103,9 +103,9 @@ Full PowerPoint parity remains unfinished. Native rendering execution, complete 
 | Master design | Full native placeholder/layout authoring, theme font/color variants, background styles, design suggestions, footer/date/slide-number fields |
 | Rich text | Native paragraph/list hierarchy, tabs/rulers, slide actions, superscript/subscript, text highlights, columns, vertical/RTL text controls, equations/symbol UI, font embedding, translation |
 | Shapes and diagrams | Adjustment handles on preset geometry, freeform drawing, merge/subtract shapes, editable points, SmartArt, WordArt, 3D models, ink-to-shape, advanced shadows/gradients/reflections. Unsupported preset geometry imports as a rectangle with an explicit warning |
-| Images | Crop/mask/focal point, correction/recolor, background removal, compression, online/stock search, SVG editing, screenshot capture |
+| Images | Correction/recolor, background removal, compression, online/stock search, SVG editing, screenshot capture. Crop exists as fit/focal, not freeform masks |
 | Tables | Cell/row/column UI, merging/splitting, formulas, cell-level styling, Excel-linked data, large-data virtualization |
-| Charts | Multiple series, all chart types, axes/grid customization, legends, linked Excel workbooks, data labels/formatting controls, trendlines, chart animations |
+| Charts | All chart types beyond bar/line, axes/grid customization depth, legends styling, linked Excel workbooks, data labels/formatting controls, trendlines, chart animations |
 | Animation | Complete edited native timing fidelity, arbitrary motion curves, interactive object triggers, Morph, animation copying |
 | Audio/video | YouTube insertion, destructive trim, bookmarks, fades, narration, audio across slides, recording, native playback-setting retention |
 | Presenting | Separate audience/presenter windows, next-slide presenter preview, rehearsals, recording, custom shows, loop/kiosk settings, laser/ink, live captions/subtitles, audience polling, remote presenter controls |
@@ -125,7 +125,9 @@ PaperDOM's distinctive capabilities are its canonical JSON document, stable obje
 
 Before claiming native PowerPoint fidelity, open a representative corpus in current Windows and macOS PowerPoint, save/reopen every export, check repair dialogs and font substitution, compare rendered slides, exercise media playback and inspect master linkage. A browser screenshot or structurally valid OOXML does not satisfy this gate.
 
-The next interoperability work is full native timing, placeholder and theme inheritance, rich paragraphs, and a real PowerPoint-rendered fixture corpus. Comments/history, presenter windows/recording, handouts and broader accessibility testing remain separate work.
+A macOS counterpart pipeline now exists and has run for real: `scripts/render-keynote.mjs` opens a generated PPTX in Keynote, exports slide PNGs and PDF, and writes a SHA-256 manifest. It found concrete native facts: text, tables, shadowed gradient cards and preset geometry render correctly; **charts are silently dropped by Keynote's importer** and gradients arrive as solid colors. Windows PowerPoint verification remains open.
+
+The next interoperability work is full native timing, placeholder and theme inheritance, rich paragraphs, a real PowerPoint-rendered fixture corpus, and a chart export path Keynote accepts (e.g. simplified chart XML). Comments/history, presenter windows/recording, handouts and broader accessibility testing remain separate work.
 
 ## Source restoration
 

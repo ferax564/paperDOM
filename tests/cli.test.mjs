@@ -47,3 +47,21 @@ test("CLI exports PowerPoint and standalone HTML without overwriting", async () 
     assert.equal(cli("export-html", source, html).status, 1);
   } finally { await rm(dir, { recursive: true, force: true }); }
 });
+
+test("CLI renders a slide to PNG when the Playwright Chromium browser is available", async () => {
+  const dir = await mkdtemp(join(tmpdir(), "paperdom-cli-render-"));
+  try {
+    const source = join(dir, "document.json");
+    await writeFile(source, JSON.stringify(documentFixture()));
+    const png = join(dir, "slide.png");
+    const result = cli("render", source, png);
+    if (result.status !== 0) {
+      assert.match(result.stderr, /Playwright/, "render failures must point at the browser install");
+      return;
+    }
+    const written = JSON.parse(result.stdout);
+    assert.equal(written.ok, true);
+    const bytes = await readFile(png);
+    assert.equal(bytes.subarray(1, 4).toString(), "PNG");
+  } finally { await rm(dir, { recursive: true, force: true }); }
+});
